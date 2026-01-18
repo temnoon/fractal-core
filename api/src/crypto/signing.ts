@@ -102,11 +102,20 @@ export function publicKeyFromBase64(b64: string): Uint8Array {
   return base64Decode(b64);
 }
 
-// Base64 encoding/decoding helpers
+// Base64 encoding/decoding helpers (Workers-compatible, no Buffer)
 function base64Encode(data: Uint8Array): string {
-  return Buffer.from(data).toString('base64');
+  let binary = '';
+  for (let i = 0; i < data.length; i++) {
+    binary += String.fromCharCode(data[i]);
+  }
+  return btoa(binary);
 }
 
 function base64Decode(b64: string): Uint8Array {
-  return new Uint8Array(Buffer.from(b64, 'base64'));
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }

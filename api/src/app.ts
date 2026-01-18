@@ -5,7 +5,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { compress } from 'hono/compress';
 
 import { statusRoute } from './routes/status.js';
 import { capabilitiesRoute } from './routes/capabilities.js';
@@ -23,9 +22,9 @@ export function createApp() {
   const app = new Hono();
 
   // Middleware
+  // Note: Cloudflare Workers handles compression at the edge
   app.use('*', logger());
   app.use('*', cors());
-  app.use('*', compress());
 
   // Error handling
   app.onError((err, c) => {

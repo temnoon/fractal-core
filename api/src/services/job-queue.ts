@@ -2,7 +2,7 @@
  * In-memory job queue for async processing
  */
 
-import { randomBytes } from 'crypto';
+import { bytesToHex } from '@noble/hashes/utils';
 import type { Job, JobStatus, CanonicalRequest, SignedResponse, Receipt } from '../types/api.js';
 import { computeNeighborhood, parseComputeOptions, toNeighborhoodResult } from './neighborhood.js';
 import { validateNeighborhood } from './validation.js';
@@ -20,7 +20,9 @@ const MAX_JOBS = 100;
  * Generate a unique job ID
  */
 function generateJobId(): string {
-  return randomBytes(16).toString('hex');
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return bytesToHex(bytes);
 }
 
 /**
