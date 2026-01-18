@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prime Neighborhood: Δ² Bounce + Ratio Compass</title>
+  <style>
+    :root{
+      --bg0:#0b0f17; --bg1:#121a2a;
+      --panel:#0f1726cc; --panel2:#0f172699;
+      --text:#d7e3ff; --muted:#8aa0c7;
+      --grid:#20304f;
+      --accent:#7cc0ff;
+      --warn:#ffb86b;
+      --bad:#ff5c7a;
+      --good:#39d98a;
+      --line:#2a3b62;
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    html,body{height:100%; margin:0; background: radial-gradient(1100px 800px at 25% 10%, #1a2a4a 0%, var(--bg0) 48%, #070a10 100%); color:var(--text); font-family:var(--sans);}
+    .wrap{max-width:1180px; margin:24px auto; padding:0 16px;}
+    header{
+      display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:14px;
+    }
+    h1{font-size:20px; margin:0; letter-spacing:.2px;}
+    .sub{color:var(--muted); font-size:13px; margin-top:6px; max-width:760px; line-height:1.35;}
+    .card{
+      background: linear-gradient(180deg, var(--panel) 0%, rgba(9,12,20,.6) 100%);
+      border: 1px solid rgba(124,192,255,.16);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap:16px;
+    }
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
+
+    .stage{
+      position:relative;
+      min-height:520px;
+    }
+    .stage svg{
+      width:100%; height:520px; display:block;
+      background: linear-gradient(180deg, rgba(8,10,16,.0) 0%, rgba(8,10,16,.35) 100%);
+    }
+
+    .controls{
+      padding:14px 16px 16px 16px;
+      border-top:1px solid rgba(124,192,255,.12);
+      background: linear-gradient(180deg, rgba(10,14,24,.35) 0%, rgba(10,14,24,.65) 100%);
+    }
+    .row{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:10px;}
+    .row:first-child{margin-top:0;}
+    label{font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:6px;}
+    input[type="number"], input[type="text"]{
+      background: rgba(7,10,16,.8);
+      border: 1px solid rgba(124,192,255,.18);
+      border-radius:10px;
+      color: var(--text);
+      padding:8px 10px;
+      font-family: var(--mono);
+      font-size:12px;
+      width: 150px;
+      outline:none;
+    }
+    input[type="range"]{width:220px;}
+    button{
+      appearance:none;
+      border: 1px solid rgba(124,192,255,.22);
+      background: linear-gradient(180deg, rgba(28,45,78,.85) 0%, rgba(18,26,44,.85) 100%);
+      color: var(--text);
+      padding:9px 12px;
+      border-radius:12px;
+      font-size:12px;
+      letter-spacing:.2px;
+      cursor:pointer;
+      box-shadow: 0 8px 20px rgba(0,0,0,.25);
+    }
+    button:hover{border-color: rgba(124,192,255,.36);}
+    button:active{transform: translateY(1px);}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px;
+      border:1px solid rgba(124,192,255,.18);
+      background: rgba(7,10,16,.6);
+      border-radius: 999px;
+      font-size:12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    .statgrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      padding:16px;
+    }
+    .stat{
+      background: rgba(7,10,16,.55);
+      border:1px solid rgba(124,192,255,.14);
+      border-radius:14px;
+      padding:12px 12px 10px 12px;
+    }
+    .stat .k{color:var(--muted); font-size:12px; margin-bottom:6px;}
+    .stat .v{font-family:var(--mono); font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .note{
+      padding:0 16px 16px 16px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.4;
+    }
+    .hr{height:1px; background: rgba(124,192,255,.12); margin:0 16px;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Prime Neighborhood Navigator</h1>
+      <div class="sub">
+        A neighborhood around <span style="font-family:var(--mono); color:var(--text)">pₙ</span> with walls at
+        <span style="font-family:var(--mono); color:var(--text)">pₙ₋₁</span> and <span style="font-family:var(--mono); color:var(--text)">pₙ₊₁</span>.
+        The ball bounces with acceleration driven by <span style="font-family:var(--mono); color:var(--text)">Δ² = (pₙ₊₁−pₙ) − (pₙ−pₙ₋₁)</span>.
+        The “second ratio” is <span style="font-family:var(--mono); color:var(--text)">r = Δ² / (pₙ₊₁−pₙ₋₁)</span>, shown as a compass needle: 0 down, −1 up, +1 right.
+      </div>
+    </div>
+    <div class="pill" id="statusPill">ready</div>
+  </header>
+
+  <div class="grid">
+    <!-- Left: visualization -->
+    <div class="card stage">
+      <svg id="viz" viewBox="0 0 980 520" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="glow" x1="0" x2="1">
+            <stop offset="0" stop-color="#7cc0ff" stop-opacity="0.05"/>
+            <stop offset="0.5" stop-color="#7cc0ff" stop-opacity="0.10"/>
+            <stop offset="1" stop-color="#7cc0ff" stop-opacity="0.05"/>
+          </linearGradient>
+
+          <radialGradient id="ballGlow" cx="35%" cy="35%" r="75%">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+            <stop offset="0.35" stop-color="#9fd4ff" stop-opacity="0.85"/>
+            <stop offset="1" stop-color="#0b0f17" stop-opacity="0.0"/>
+          </radialGradient>
+
+          <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000000" flood-opacity="0.45"/>
+          </filter>
+
+          <filter id="innerGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.4" result="blur"/>
+            <feColorMatrix in="blur" type="matrix"
+              values="1 0 0 0 0
+                      0 1 0 0 0
+                      0 0 1 0 0
+                      0 0 0 0.55 0" result="glow"/>
+            <feMerge>
+              <feMergeNode in="glow"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <!-- Background grid -->
+        <g opacity="0.9">
+          <rect x="0" y="0" width="980" height="520" fill="transparent"/>
+          <g stroke="var(--grid)" stroke-width="1">
+            <!-- vertical -->
+            <path d="M70 0 V520" />
+            <path d="M140 0 V520" />
+            <path d="M210 0 V520" />
+            <path d="M280 0 V520" />
+            <path d="M350 0 V520" />
+            <path d="M420 0 V520" />
+            <path d="M490 0 V520" />
+            <path d="M560 0 V520" />
+            <path d="M630 0 V520" />
+            <path d="M700 0 V520" />
+            <path d="M770 0 V520" />
+            <path d="M840 0 V520" />
+            <path d="M910 0 V520" />
+            <!-- horizontal -->
+            <path d="M0 70 H980" />
+            <path d="M0 140 H980" />
+            <path d="M0 210 H980" />
+            <path d="M0 280 H980" />
+            <path d="M0 350 H980" />
+            <path d="M0 420 H980" />
+            <path d="M0 490 H980" />
+          </g>
+          <rect x="0" y="0" width="980" height="520" fill="url(#glow)"/>
+        </g>
+
+        <!-- Corridor panel -->
+        <g id="corridor" transform="translate(60,70)">
+          <rect x="0" y="0" width="620" height="260" rx="18" fill="rgba(7,10,16,0.55)" stroke="rgba(124,192,255,0.18)" />
+          <rect x="0" y="0" width="620" height="260" rx="18" fill="transparent" filter="url(#innerGlow)"/>
+
+          <!-- Walls -->
+          <g id="walls">
+            <rect id="leftWall" x="14" y="20" width="16" height="220" rx="8" fill="rgba(124,192,255,0.35)" />
+            <rect id="rightWall" x="590" y="20" width="16" height="220" rx="8" fill="rgba(124,192,255,0.35)" />
+            <text id="leftLabel" x="14" y="16" font-family="var(--mono)" font-size="12" fill="var(--muted)">pₙ₋₁</text>
+            <text id="rightLabel" x="590" y="16" font-family="var(--mono)" font-size="12" fill="var(--muted)">pₙ₊₁</text>
+          </g>
+
+          <!-- Center guide -->
+          <g opacity="0.7">
+            <path d="M310 18 V242" stroke="rgba(124,192,255,0.18)" stroke-width="2" stroke-dasharray="4 8"/>
+            <text x="310" y="252" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">center guide</text>
+          </g>
+
+          <!-- Ball trail -->
+          <path id="trail" d="" fill="none" stroke="rgba(124,192,255,0.18)" stroke-width="3" stroke-linecap="round"/>
+
+          <!-- Ball -->
+          <g id="ballGroup" filter="url(#softShadow)">
+            <circle id="ballGlowCircle" cx="310" cy="140" r="34" fill="url(#ballGlow)" opacity="0.65"/>
+            <circle id="ball" cx="310" cy="140" r="15" fill="var(--accent)" stroke="rgba(255,255,255,0.28)" stroke-width="2"/>
+          </g>
+
+          <!-- Δ² label (inside corridor) -->
+          <g transform="translate(18,228)">
+            <rect x="0" y="0" width="240" height="26" rx="10" fill="rgba(7,10,16,0.55)" stroke="rgba(124,192,255,0.14)"/>
+            <text id="d2Label" x="10" y="18" font-family="var(--mono)" font-size="12" fill="var(--text)">Δ²: —</text>
+          </g>
+        </g>
+
+        <!-- Right-side instrument panel -->
+        <g id="panel" transform="translate(720,70)">
+          <rect x="0" y="0" width="240" height="260" rx="18" fill="rgba(7,10,16,0.55)" stroke="rgba(124,192,255,0.18)"/>
+
+          <!-- Compass -->
+          <g transform="translate(120,98)">
+            <circle cx="0" cy="0" r="74" fill="rgba(12,18,34,0.85)" stroke="rgba(124,192,255,0.18)" />
+            <circle cx="0" cy="0" r="58" fill="transparent" stroke="rgba(124,192,255,0.14)" />
+            <!-- Marks -->
+            <g stroke="rgba(124,192,255,0.22)" stroke-width="2" opacity="0.9">
+              <path d="M0 -74 V-60" />
+              <path d="M74 0 H60" />
+              <path d="M0 74 V60" />
+              <path d="M-74 0 H-60" />
+            </g>
+            <text x="0" y="-84" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">r compass</text>
+
+            <!-- Labels: up (-1), down (0), right (+1) -->
+            <text x="0" y="-64" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">-1</text>
+            <text x="0" y="70" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">0</text>
+            <text x="64" y="6" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">+1</text>
+
+            <!-- Needle -->
+            <g id="needle">
+              <path id="needlePath" d="M0 0 L0 58" stroke="var(--accent)" stroke-width="5" stroke-linecap="round"/>
+              <circle cx="0" cy="0" r="7" fill="rgba(124,192,255,0.95)" />
+            </g>
+
+            <!-- r numeric -->
+            <g transform="translate(-60,86)">
+              <rect x="0" y="0" width="120" height="26" rx="10" fill="rgba(7,10,16,0.55)" stroke="rgba(124,192,255,0.14)"/>
+              <text id="rLabel" x="10" y="18" font-family="var(--mono)" font-size="12" fill="var(--text)">r: —</text>
+            </g>
+          </g>
+
+          <!-- Mini sparkline strip -->
+          <g transform="translate(14,214)">
+            <rect x="0" y="0" width="212" height="34" rx="12" fill="rgba(7,10,16,0.55)" stroke="rgba(124,192,255,0.14)"/>
+            <path id="spark" d="" fill="none" stroke="rgba(124,192,255,0.40)" stroke-width="2" />
+            <text x="8" y="22" font-family="var(--mono)" font-size="11" fill="var(--muted)">Δ² history</text>
+          </g>
+        </g>
+
+        <!-- Footer signature -->
+        <g transform="translate(60,360)">
+          <rect x="0" y="0" width="900" height="130" rx="18" fill="rgba(7,10,16,0.45)" stroke="rgba(124,192,255,0.14)"/>
+          <text x="18" y="30" font-family="var(--mono)" font-size="12" fill="var(--muted)">Readout</text>
+          <text id="readout" x="18" y="58" font-family="var(--mono)" font-size="13" fill="var(--text)"></text>
+          <text id="readout2" x="18" y="84" font-family="var(--mono)" font-size="13" fill="var(--text)"></text>
+          <text id="readout3" x="18" y="110" font-family="var(--mono)" font-size="13" fill="var(--text)"></text>
+        </g>
+      </svg>
+
+      <div class="controls">
+        <div class="row">
+          <button id="btnBuild">Build primes</button>
+          <button id="btnPlay">Play</button>
+          <button id="btnStep">Step</button>
+          <button id="btnReset">Reset</button>
+          <span class="pill" id="primeInfo">primes: —</span>
+        </div>
+
+        <div class="row">
+          <label>Prime limit (sieve up to)
+            <input id="limit" type="number" value="5000000" min="100000" step="100000"/>
+          </label>
+
+          <label>Start index (n)
+            <input id="startIndex" type="number" value="20000" min="1" step="1"/>
+          </label>
+
+          <label>Playback speed (steps/sec)
+            <input id="speed" type="range" min="1" max="60" value="18"/>
+          </label>
+
+          <label>Δ² force scale
+            <input id="force" type="range" min="1" max="200" value="60"/>
+          </label>
+
+          <label>Friction
+            <input id="friction" type="range" min="900" max="999" value="985"/>
+          </label>
+        </div>
+
+        <div class="row">
+          <span class="pill">Tip: raise limit if you run out of primes near the chosen start index.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: stats -->
+    <div class="card">
+      <div class="statgrid">
+        <div class="stat">
+          <div class="k">pₙ₋₁</div>
+          <div class="v" id="s_pPrev">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">pₙ</div>
+          <div class="v" id="s_p">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">pₙ₊₁</div>
+          <div class="v" id="s_pNext">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">span (pₙ₊₁−pₙ₋₁)</div>
+          <div class="v" id="s_span">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">gₙ₋₁ = (pₙ−pₙ₋₁)</div>
+          <div class="v" id="s_gPrev">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">gₙ = (pₙ₊₁−pₙ)</div>
+          <div class="v" id="s_g">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">Δ² = gₙ − gₙ₋₁</div>
+          <div class="v" id="s_d2">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">r = Δ² / (pₙ₊₁−pₙ₋₁)</div>
+          <div class="v" id="s_r">—</div>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="note">
+        This is intentionally “geography-like”: the same coordinate (index n) always lands on the same neighborhood.
+        The animation is only a rendering of invariant measurements: gap, second difference, and normalized second ratio.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- DOM ----------
+  const $ = (id) => document.getElementById(id);
+
+  const statusPill = $("statusPill");
+  const primeInfo  = $("primeInfo");
+
+  const btnBuild = $("btnBuild");
+  const btnPlay  = $("btnPlay");
+  const btnStep  = $("btnStep");
+  const btnReset = $("btnReset");
+
+  const limitEl = $("limit");
+  const startIndexEl = $("startIndex");
+  const speedEl = $("speed");
+  const forceEl = $("force");
+  const frictionEl = $("friction");
+
+  // SVG elements
+  const leftLabel = $("leftLabel");
+  const rightLabel = $("rightLabel");
+  const ball = $("ball");
+  const ballGlowCircle = $("ballGlowCircle");
+  const trail = $("trail");
+  const d2Label = $("d2Label");
+  const needlePath = $("needlePath");
+  const rLabel = $("rLabel");
+  const spark = $("spark");
+
+  const readout  = $("readout");
+  const readout2 = $("readout2");
+  const readout3 = $("readout3");
+
+  // Stat panel
+  const s_pPrev = $("s_pPrev");
+  const s_p = $("s_p");
+  const s_pNext = $("s_pNext");
+  const s_span = $("s_span");
+  const s_gPrev = $("s_gPrev");
+  const s_g = $("s_g");
+  const s_d2 = $("s_d2");
+  const s_r = $("s_r");
+
+  // Corridor geometry (in SVG coords)
+  const CORRIDOR = { x: 60, y: 70, w: 620, h: 260 };
+  const WALL_PAD = 30; // inside corridor
+  const LEFT_X = CORRIDOR.x + WALL_PAD;
+  const RIGHT_X = CORRIDOR.x + CORRIDOR.w - WALL_PAD;
+  const MID_Y = CORRIDOR.y + CORRIDOR.h/2;
+
+  // ---------- Prime generation ----------
+  /** Simple sieve of Eratosthenes up to limit (inclusive). Returns array of primes. */
+  function sieve(limit) {
+    const n = Math.max(3, limit|0);
+    const isPrime = new Uint8Array(n + 1);
+    isPrime.fill(1);
+    isPrime[0]=0; isPrime[1]=0;
+    for (let i=4;i<=n;i+=2) isPrime[i]=0;
+
+    const r = Math.floor(Math.sqrt(n));
+    for (let p=3; p<=r; p+=2) {
+      if (!isPrime[p]) continue;
+      const step = p<<1;
+      let start = p*p;
+      for (let k=start; k<=n; k+=step) isPrime[k]=0;
+    }
+    const primes = [2];
+    for (let i=3;i<=n;i+=2) if (isPrime[i]) primes.push(i);
+    return primes;
+  }
+
+  // ---------- Mapping utilities ----------
+  function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+
+  function formatInt(x){
+    // x is number; keep simple formatting
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  // Color based on Δ² sign and magnitude.
+  function colorFromD2(d2){
+    // map magnitude into 0..1 via tanh-ish
+    const m = Math.tanh(Math.abs(d2)/6); // d2 ~ small ints
+    // base colors: good/neutral/bad
+    const good = [57,217,138];
+    const bad  = [255,92,122];
+    const neutral = [124,192,255];
+
+    let a, b, t;
+    if (d2 === 0){
+      a = neutral; b = neutral; t = 0;
+    } else if (d2 > 0){
+      a = neutral; b = good; t = m;
+    } else {
+      a = neutral; b = bad; t = m;
+    }
+    const rgb = a.map((av,i)=>Math.round(av + (b[i]-av)*t));
+    return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  }
+
+  // “Compass” mapping consistent with your description:
+  // r in [-1,0] interpolates Up -> Down
+  // r in [0,1]  interpolates Down -> Right
+  function needleVectorFromR(r){
+    r = clamp(r, -1, 1);
+    const Up = {x:0, y:-1};
+    const Down = {x:0, y:1};
+    const Right = {x:1, y:0};
+
+    let v;
+    if (r <= 0){
+      const t = r + 1; // [-1..0] -> [0..1]
+      v = { x: Up.x + (Down.x-Up.x)*t, y: Up.y + (Down.y-Up.y)*t };
+    } else {
+      const t = r; // [0..1]
+      v = { x: Down.x + (Right.x-Down.x)*t, y: Down.y + (Right.y-Down.y)*t };
+    }
+    // normalize
+    const len = Math.hypot(v.x, v.y) || 1;
+    return { x: v.x/len, y: v.y/len };
+  }
+
+  // Build a sparkline path from history values
+  function sparkPath(vals, w, h){
+    if (vals.length < 2) return "";
+    const n = vals.length;
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const span = (max-min) || 1;
+    const pad = 6;
+    const x0 = 10, y0 = 214 + 17; // spark group translated; we draw absolute below, so will shift later
+    // We'll draw relative coordinates in its own group: x in [8..w-8], y in [8..h-8]
+    const X = (i) => pad + (i/(n-1))*(w-2*pad);
+    const Y = (v) => pad + (1 - (v-min)/span)*(h-2*pad);
+    let d = `M ${X(0).toFixed(2)} ${Y(vals[0]).toFixed(2)}`;
+    for (let i=1;i<n;i++){
+      d += ` L ${X(i).toFixed(2)} ${Y(vals[i]).toFixed(2)}`;
+    }
+    return d;
+  }
+
+  // ---------- Simulation state ----------
+  let primes = [];
+  let builtLimit = 0;
+
+  let nIndex = 20000;     // prime index (p_n)
+  let playing = false;
+
+  // Ball physics (corridor coordinates)
+  let x = (LEFT_X + RIGHT_X)/2;
+  let vx = 0;
+
+  // Trail
+  const trailPts = [];
+  const TRAIL_MAX = 60;
+
+  // History of Δ²
+  const d2Hist = [];
+  const D2H_MAX = 64;
+
+  // Timers
+  let lastFrame = 0;
+  let accumStep = 0;
+
+  function setStatus(txt){
+    statusPill.textContent = txt;
+  }
+
+  function setPrimeInfo(txt){
+    primeInfo.textContent = txt;
+  }
+
+  // ---------- Core update per prime index ----------
+  function measureAtIndex(idx){
+    // requires idx-1, idx, idx+1
+    if (!primes.length) return null;
+    if (idx < 1) idx = 1;
+    if (idx > primes.length-2) idx = primes.length-2;
+
+    const pPrev = primes[idx-1];
+    const p = primes[idx];
+    const pNext = primes[idx+1];
+
+    const gPrev = p - pPrev;
+    const g = pNext - p;
+    const d2 = g - gPrev;
+    const span = pNext - pPrev;
+    const r = span ? (d2 / span) : 0;
+
+    return { idx, pPrev, p, pNext, gPrev, g, d2, span, r };
+  }
+
+  function updateUI(m){
+    const { pPrev, p, pNext, gPrev, g, d2, span, r, idx } = m;
+
+    leftLabel.textContent = `pₙ₋₁ = ${formatInt(pPrev)}`;
+    rightLabel.textContent = `pₙ₊₁ = ${formatInt(pNext)}`;
+
+    d2Label.textContent = `Δ²: ${d2 >= 0 ? "+" : ""}${d2}`;
+    rLabel.textContent = `r: ${r.toFixed(6)}`;
+
+    s_pPrev.textContent = formatInt(pPrev);
+    s_p.textContent = formatInt(p);
+    s_pNext.textContent = formatInt(pNext);
+    s_span.textContent = formatInt(span);
+    s_gPrev.textContent = formatInt(gPrev);
+    s_g.textContent = formatInt(g);
+    s_d2.textContent = `${d2 >= 0 ? "+" : ""}${d2}`;
+    s_r.textContent = r.toFixed(10);
+
+    readout.textContent  = `index n = ${formatInt(idx)}    pₙ₋₁, pₙ, pₙ₊₁ = ${formatInt(pPrev)}, ${formatInt(p)}, ${formatInt(pNext)}`;
+    readout2.textContent = `gₙ₋₁ = ${gPrev}    gₙ = ${g}    Δ² = ${d2 >= 0 ? "+" : ""}${d2}    span = ${span}`;
+    readout3.textContent = `second ratio r = Δ² / (pₙ₊₁−pₙ₋₁) = ${r.toFixed(10)}`;
+
+    // Update compass needle
+    const v = needleVectorFromR(r);
+    const len = 58;
+    const x2 = v.x * len;
+    const y2 = v.y * len;
+    needlePath.setAttribute("d", `M 0 0 L ${x2.toFixed(2)} ${y2.toFixed(2)}`);
+
+    // Color by Δ²
+    const c = colorFromD2(d2);
+    ball.setAttribute("fill", c);
+    ballGlowCircle.setAttribute("opacity", 0.55 + 0.25*Math.tanh(Math.abs(d2)/10));
+
+    // History
+    d2Hist.push(d2);
+    while (d2Hist.length > D2H_MAX) d2Hist.shift();
+    spark.setAttribute("d", sparkPath(d2Hist, 212, 34));
+  }
+
+  // ---------- Physics step ----------
+  function physicsStep(dt, m){
+    // dt in seconds
+    const corridorLeft = LEFT_X;
+    const corridorRight = RIGHT_X;
+
+    // Drive acceleration by Δ², stabilized with tanh
+    const forceScale = Number(forceEl.value);
+    const a = Math.tanh(m.d2 / 8) * (forceScale * 0.90);
+
+    // friction: map slider [900..999] -> [0.90..0.999]
+    const fr = Number(frictionEl.value) / 1000;
+
+    // Semi-implicit Euler
+    vx += a * dt;
+    vx *= Math.pow(fr, dt*60); // frame-rate invariant-ish
+    x  += vx * dt * 60;        // scale to look lively
+
+    // Bounce
+    const radius = 15;
+    const minX = corridorLeft + radius;
+    const maxX = corridorRight - radius;
+    if (x < minX){ x = minX; vx = Math.abs(vx) * 0.98; }
+    if (x > maxX){ x = maxX; vx = -Math.abs(vx) * 0.98; }
+
+    // Draw ball
+    ball.setAttribute("cx", x.toFixed(2));
+    ball.setAttribute("cy", MID_Y.toFixed(2));
+    ballGlowCircle.setAttribute("cx", x.toFixed(2));
+    ballGlowCircle.setAttribute("cy", MID_Y.toFixed(2));
+
+    // Trail
+    trailPts.push({x, y: MID_Y});
+    while (trailPts.length > TRAIL_MAX) trailPts.shift();
+    if (trailPts.length >= 2){
+      let d = `M ${trailPts[0].x.toFixed(2)} ${trailPts[0].y.toFixed(2)}`;
+      for (let i=1;i<trailPts.length;i++){
+        d += ` L ${trailPts[i].x.toFixed(2)} ${trailPts[i].y.toFixed(2)}`;
+      }
+      trail.setAttribute("d", d);
+      // fade trail with speed
+      const sp = Math.min(1, Math.abs(vx)/120);
+      trail.setAttribute("stroke", `rgba(124,192,255,${0.10 + 0.18*sp})`);
+    }
+  }
+
+  // ---------- Playback tick ----------
+  let currentMeasure = null;
+
+  function ensureMeasure(){
+    if (!primes.length) return null;
+    const desired = clamp(Number(startIndexEl.value) | 0, 1, primes.length-2);
+    if (nIndex !== desired && !playing){
+      nIndex = desired;
+    }
+    const m = measureAtIndex(nIndex);
+    if (!m) return null;
+    currentMeasure = m;
+    updateUI(m);
+    startIndexEl.value = String(m.idx);
+    return m;
+  }
+
+  function stepIndex(){
+    if (!primes.length) return;
+    nIndex += 1;
+    if (nIndex > primes.length-2) nIndex = 1;
+    startIndexEl.value = String(nIndex);
+    const m = measureAtIndex(nIndex);
+    if (!m) return;
+    currentMeasure = m;
+    updateUI(m);
+  }
+
+  function frame(ts){
+    if (!lastFrame) lastFrame = ts;
+    const dt = (ts - lastFrame) / 1000;
+    lastFrame = ts;
+
+    const m = ensureMeasure();
+    if (m){
+      // Advance index based on playback speed
+      if (playing){
+        const stepsPerSec = Number(speedEl.value);
+        accumStep += dt * stepsPerSec;
+        while (accumStep >= 1){
+          stepIndex();
+          accumStep -= 1;
+        }
+      }
+      physicsStep(dt, currentMeasure);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Actions ----------
+  async function buildPrimes(){
+    setStatus("building primes…");
+    btnBuild.disabled = true;
+    btnPlay.disabled = true;
+    btnStep.disabled = true;
+
+    // Allow UI to update before sieve (sieve is synchronous).
+    await new Promise(r => setTimeout(r, 10));
+
+    const lim = clamp(Number(limitEl.value) | 0, 100000, 20000000);
+    const t0 = performance.now();
+    primes = sieve(lim);
+    const t1 = performance.now();
+
+    builtLimit = lim;
+    setStatus(`built ${formatInt(primes.length)} primes ≤ ${formatInt(lim)} in ${(t1-t0).toFixed(0)}ms`);
+    setPrimeInfo(`primes: ${formatInt(primes.length)} (≤ ${formatInt(lim)})`);
+
+    // Clamp start index
+    const si = clamp(Number(startIndexEl.value)|0, 1, primes.length-2);
+    startIndexEl.value = String(si);
+    nIndex = si;
+
+    // Reset physics state
+    x = (LEFT_X + RIGHT_X)/2;
+    vx = 0;
+    trailPts.length = 0;
+    d2Hist.length = 0;
+
+    ensureMeasure();
+
+    btnBuild.disabled = false;
+    btnPlay.disabled = false;
+    btnStep.disabled = false;
+  }
+
+  function togglePlay(){
+    playing = !playing;
+    btnPlay.textContent = playing ? "Pause" : "Play";
+    setStatus(playing ? "playing" : "paused");
+  }
+
+  function reset(){
+    playing = false;
+    btnPlay.textContent = "Play";
+    accumStep = 0;
+    // reset index and physics
+    nIndex = clamp(Number(startIndexEl.value)|0, 1, Math.max(2, primes.length-2));
+    x = (LEFT_X + RIGHT_X)/2;
+    vx = 0;
+    trailPts.length = 0;
+    d2Hist.length = 0;
+    ensureMeasure();
+    setStatus("reset");
+  }
+
+  // ---------- Wiring ----------
+  btnBuild.addEventListener("click", buildPrimes);
+  btnPlay.addEventListener("click", togglePlay);
+  btnStep.addEventListener("click", () => { playing=false; btnPlay.textContent="Play"; stepIndex(); setStatus("stepped"); });
+  btnReset.addEventListener("click", reset);
+
+  startIndexEl.addEventListener("change", () => { if (!playing) { nIndex = Number(startIndexEl.value)|0; ensureMeasure(); } });
+  limitEl.addEventListener("change", () => { setStatus("limit changed (rebuild primes)"); });
+
+  // Kick off animation loop
+  requestAnimationFrame(frame);
+
+  // Auto-build once on load (small delay to render UI first)
+  setTimeout(() => buildPrimes().catch(err => {
+    console.error(err);
+    setStatus("error building primes");
+    btnBuild.disabled = false;
+    btnPlay.disabled = false;
+    btnStep.disabled = false;
+  }), 30);
+})();
+</script>
+</body>
+</html>
