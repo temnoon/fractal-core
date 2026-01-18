@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Terrain - Prime Neighborhood Explorer</title>
+  <style>
+    body {
+      font-family: serif;
+      background: #ffffff;
+      color: #000000;
+      margin: 0;
+      padding: 0;
+    }
+    .center {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 10px;
+    }
+    h1 {
+      font-size: 1.5em;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .searchbox {
+      text-align: center;
+      margin: 20px 0;
+      padding: 15px;
+      background: #f5f5f5;
+      border: 1px solid #ccc;
+    }
+    .searchbox input[type="text"] {
+      width: 300px;
+      padding: 5px;
+      font-size: 14px;
+      font-family: monospace;
+    }
+    .searchbox select {
+      padding: 4px;
+      font-size: 14px;
+    }
+    .searchbox input[type="submit"] {
+      padding: 5px 15px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .searchbox label {
+      display: inline-block;
+      margin: 5px 10px;
+    }
+    .links {
+      text-align: center;
+      margin: 10px 0;
+    }
+    .links a {
+      margin: 0 10px;
+      color: #0000cc;
+    }
+    .result {
+      margin: 20px 0;
+      padding: 15px;
+      background: #fafafa;
+      border: 1px solid #ddd;
+    }
+    .result h2 {
+      font-size: 1.2em;
+      margin: 0 0 10px 0;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+    .result pre {
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #eee;
+      overflow-x: auto;
+    }
+    .sequence-line {
+      margin: 5px 0;
+    }
+    .sequence-label {
+      font-weight: bold;
+      color: #333;
+    }
+    .sequence-data {
+      font-family: monospace;
+      color: #000;
+    }
+    .meta {
+      font-size: 12px;
+      color: #666;
+      margin-top: 10px;
+    }
+    .footer {
+      text-align: center;
+      margin: 30px 0;
+      padding: 15px;
+      border-top: 1px solid #ccc;
+      font-size: 12px;
+      color: #666;
+    }
+    .footer a {
+      color: #0000cc;
+    }
+    .error {
+      color: #cc0000;
+      padding: 10px;
+      background: #fff0f0;
+      border: 1px solid #ffcccc;
+    }
+    .export-links {
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    .export-links a {
+      margin-right: 10px;
+      color: #0066cc;
+    }
+    table.data {
+      border-collapse: collapse;
+      font-family: monospace;
+      font-size: 13px;
+      margin: 10px 0;
+    }
+    table.data th, table.data td {
+      border: 1px solid #ccc;
+      padding: 4px 8px;
+      text-align: right;
+    }
+    table.data th {
+      background: #f0f0f0;
+    }
+    .related {
+      font-size: 12px;
+      color: #666;
+    }
+    .related a {
+      color: #0066cc;
+    }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <h1>Prime Terrain</h1>
+    <p style="text-align:center;color:#666;margin-top:-15px;">Prime Neighborhood Explorer</p>
+
+    <div class="searchbox">
+      <form id="searchForm">
+        <div>
+          Enter prime index or value:
+        </div>
+        <p>
+          <input type="text" id="queryN" name="n" value="100" title="Prime index or value">
+          <select id="queryType" name="n_type">
+            <option value="index">by index</option>
+            <option value="value">by value</option>
+          </select>
+        </p>
+        <p>
+          <label>Neighbors k=<input type="text" id="queryK" value="10" size="4"></label>
+          <label>
+            Include:
+            <select id="queryInclude">
+              <option value="primes,gaps,d2,ratio">All</option>
+              <option value="primes">Primes only</option>
+              <option value="gaps">Gaps only</option>
+              <option value="d2">Second diff only</option>
+              <option value="ratio">Ratios only</option>
+            </select>
+          </label>
+        </p>
+        <p>
+          <input type="submit" value="Search">
+        </p>
+      </form>
+      <div class="links">
+        <a href="#" onclick="quickSearch('primes')">Primes</a>
+        <a href="#" onclick="quickSearch('gaps')">Gaps</a>
+        <a href="#" onclick="quickSearch('d2')">Second Differences</a>
+        <a href="#" onclick="quickSearch('ratios')">Ratios</a>
+      </div>
+    </div>
+
+    <div id="results"></div>
+
+    <div class="links" style="margin-top:20px;">
+      <b>Sequences:</b>
+      <a href="#" onclick="showSequence('primes')">A000040 (Primes)</a>
+      <a href="#" onclick="showSequence('gaps')">A001223 (Gaps)</a>
+      <a href="#" onclick="showSequence('d2')">A036263 (Second diff)</a>
+      <a href="#" onclick="showSequence('ratios')">Ratios (novel)</a>
+    </div>
+
+    <div class="footer">
+      <div class="links">
+        <a href="index.html">Visualization</a>
+        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/status" target="_blank">API Status</a>
+        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/capabilities" target="_blank">API Capabilities</a>
+        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/oeis" target="_blank">OEIS Endpoints</a>
+        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/formats/info" target="_blank">Export Formats</a>
+      </div>
+      <p>
+        API: <a href="https://prime-terrain-api.tem-527.workers.dev">prime-terrain-api.tem-527.workers.dev</a>
+      </p>
+      <p>
+        Related: <a href="https://oeis.org/A000040">OEIS A000040</a> (Primes),
+        <a href="https://oeis.org/A001223">A001223</a> (Gaps),
+        <a href="https://oeis.org/A036263">A036263</a> (Second differences)
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const API = 'https://prime-terrain-api.tem-527.workers.dev/api/v1';
+
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const n = document.getElementById('queryN').value;
+      const nType = document.getElementById('queryType').value;
+      const k = document.getElementById('queryK').value;
+      const include = document.getElementById('queryInclude').value;
+
+      await fetchNeighborhood(n, nType, k, include);
+    });
+
+    async function fetchNeighborhood(n, nType, k, include) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<p>Loading...</p>';
+
+      try {
+        const url = `${API}/neighborhood?n=${n}&n_type=${nType}&k=${k}&include=${include}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.error) {
+          resultsDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+          return;
+        }
+
+        resultsDiv.innerHTML = renderNeighborhood(data, n, nType, k);
+      } catch (err) {
+        resultsDiv.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderNeighborhood(data, n, nType, k) {
+      const r = data.result;
+      let html = '<div class="result">';
+      html += `<h2>Neighborhood around ${nType === 'index' ? 'p(' + n + ')' : n} = ${r.center_prime}</h2>`;
+
+      if (r.primes) {
+        html += '<div class="sequence-line">';
+        html += '<span class="sequence-label">Primes:</span> ';
+        html += '<span class="sequence-data">' + r.primes.join(', ') + '</span>';
+        html += '</div>';
+        html += '<div class="related">Related: <a href="https://oeis.org/A000040" target="_blank">OEIS A000040</a></div>';
+      }
+
+      if (r.gaps) {
+        html += '<div class="sequence-line">';
+        html += '<span class="sequence-label">Gaps g(n) = p(n+1) - p(n):</span> ';
+        html += '<span class="sequence-data">' + r.gaps.join(', ') + '</span>';
+        html += '</div>';
+        html += '<div class="related">Related: <a href="https://oeis.org/A001223" target="_blank">OEIS A001223</a></div>';
+      }
+
+      if (r.d2) {
+        html += '<div class="sequence-line">';
+        html += '<span class="sequence-label">Second differences d2(n) = g(n+1) - g(n):</span> ';
+        html += '<span class="sequence-data">' + r.d2.join(', ') + '</span>';
+        html += '</div>';
+        html += '<div class="related">Related: <a href="https://oeis.org/A036263" target="_blank">OEIS A036263</a></div>';
+      }
+
+      if (r.ratio) {
+        html += '<div class="sequence-line">';
+        html += '<span class="sequence-label">Ratios r(n) = d2(n) / (p(n+2) - p(n)):</span> ';
+        const ratioStrs = r.ratio.map(rat => rat.num + '/' + rat.den);
+        html += '<span class="sequence-data">' + ratioStrs.join(', ') + '</span>';
+        html += '</div>';
+        html += '<div class="related">Note: r(n) is always in [-1, 1]</div>';
+      }
+
+      // Export links
+      html += '<div class="export-links">';
+      html += '<b>Export:</b> ';
+      html += `<a href="${API}/neighborhood?n=${n}&n_type=${nType}&k=${k}&include=primes,gaps,d2,ratio" target="_blank">JSON</a>`;
+      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=csv" target="_blank">CSV</a>`;
+      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=pari" target="_blank">PARI</a>`;
+      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=mathematica" target="_blank">Mathematica</a>`;
+      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=latex" target="_blank">LaTeX</a>`;
+      html += '</div>';
+
+      html += '<div class="meta">';
+      html += `Mode: ${r.mode}, Engine: ${data.request.engine}`;
+      html += '</div>';
+
+      html += '</div>';
+      return html;
+    }
+
+    async function quickSearch(type) {
+      const n = document.getElementById('queryN').value;
+      const nType = document.getElementById('queryType').value;
+      const k = document.getElementById('queryK').value;
+      await fetchNeighborhood(n, nType, k, type === 'ratios' ? 'ratio' : type);
+    }
+
+    async function showSequence(seq) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<p>Loading...</p>';
+
+      try {
+        const url = `${API}/oeis/${seq}?start=0&count=100`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.error) {
+          resultsDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+          return;
+        }
+
+        const seqData = data.results[0];
+        let html = '<div class="result">';
+        html += `<h2>${seqData.name}</h2>`;
+        html += `<div class="meta">ID: ${seqData.number} | Offset: ${seqData.offset}</div>`;
+
+        if (seqData.related && seqData.related.length > 0) {
+          html += '<div class="related">Related OEIS: ';
+          html += seqData.related.map(a => `<a href="https://oeis.org/${a}" target="_blank">${a}</a>`).join(', ');
+          html += '</div>';
+        }
+
+        html += '<div class="sequence-line" style="margin-top:15px;">';
+        html += '<span class="sequence-label">Data:</span><br>';
+        html += '<span class="sequence-data">' + seqData.data + '</span>';
+        html += '</div>';
+
+        if (seqData.formula) {
+          html += '<div style="margin-top:10px;">';
+          html += '<span class="sequence-label">Formulas:</span><br>';
+          seqData.formula.forEach(f => {
+            html += '<code>' + f + '</code><br>';
+          });
+          html += '</div>';
+        }
+
+        // Export links
+        html += '<div class="export-links">';
+        html += '<b>Export:</b> ';
+        html += `<a href="${API}/oeis/${seq}?count=1000&format=bfile" target="_blank">b-file</a>`;
+        html += `<a href="${API}/oeis/${seq}?count=1000&format=list" target="_blank">List</a>`;
+        html += `<a href="${API}/formats?sequence=${seq}&count=100&format=csv" target="_blank">CSV</a>`;
+        html += `<a href="${API}/formats?sequence=${seq}&count=100&format=pari" target="_blank">PARI</a>`;
+        html += `<a href="${API}/formats?sequence=${seq}&count=100&format=mathematica" target="_blank">Mathematica</a>`;
+        html += '</div>';
+
+        html += '</div>';
+        resultsDiv.innerHTML = html;
+      } catch (err) {
+        resultsDiv.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+      }
+    }
+
+    // Load default on page load
+    fetchNeighborhood('100', 'index', '10', 'primes,gaps,d2,ratio');
+  </script>
+</body>
+</html>
