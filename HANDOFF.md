@@ -2,9 +2,15 @@
 
 ## Project Summary
 
-Prime Terrain is a prime neighborhood explorer with a REST API and minimal GUI. It computes and serves prime sequences with cryptographic signing, multiple export formats, and OEIS compatibility.
+Prime Terrain is a prime neighborhood explorer with a REST API, minimal GUI, and data visualizations. It computes and serves prime sequences with cryptographic signing, multiple export formats, and OEIS compatibility.
 
-**Live API**: https://prime-terrain-api.tem-527.workers.dev
+## Live URLs
+
+| Service | URL |
+|---------|-----|
+| **API** | https://prime-terrain-api.tem-527.workers.dev |
+| **GUI** (Pages) | https://fractal-core-c96.pages.dev |
+| **Custom Domain** | https://fractal-core.com (pending DNS setup) |
 
 ## Repository Structure
 
@@ -14,18 +20,24 @@ fractal-core/
 │   ├── src/
 │   │   ├── index.ts        # Node.js entry point
 │   │   ├── worker.ts       # Cloudflare Workers entry point
-│   │   ├── app.ts          # Hono app factory
-│   │   ├── routes/         # API endpoints
+│   │   ├── app.ts          # Hono app factory (CORS config here)
+│   │   ├── routes/         # API endpoints (11 route files)
 │   │   ├── services/       # Business logic
 │   │   ├── crypto/         # Signing & hashing
 │   │   ├── encoding/       # Varint, zigzag, binary format
 │   │   ├── types/          # TypeScript types
 │   │   └── schemas/        # Zod validation
-│   ├── tests/              # 95 tests (unit + integration)
+│   ├── tests/              # 99 tests (unit + integration)
 │   ├── wrangler.toml       # Cloudflare config
 │   └── package.json
-├── gui.html                # Minimal OEIS-style web interface
-├── index.html              # Physics-based visualization (existing)
+├── public/                 # Static site for Cloudflare Pages
+│   ├── index.html          # GUI (OEIS Explorer) - homepage
+│   ├── simulation.html     # Physics-based visualization
+│   └── visualizations.html # 2D/3D data visualizations
+├── gui.html                # Source GUI file
+├── index.html              # Source physics visualization
+├── visualizations.html     # Source data visualizations
+├── HANDOFF.md              # This file
 └── CLAUDE.md               # Project instructions
 ```
 
@@ -34,72 +46,85 @@ fractal-core/
 | Endpoint | Description |
 |----------|-------------|
 | `/api/v1/status` | Health check |
-| `/api/v1/capabilities` | Features & limits |
-| `/api/v1/neighborhood` | Full neighborhood data |
+| `/api/v1/capabilities` | Features, limits, signing keys |
+| `/api/v1/neighborhood` | Full neighborhood data (main endpoint) |
 | `/api/v1/gaps` | Prime gaps only |
-| `/api/v1/second-differences` | Δ² values only |
-| `/api/v1/second-ratios` | Normalized ratios only |
+| `/api/v1/second-differences` | d2 values only |
+| `/api/v1/second-ratios` | Ratios only |
 | `/api/v1/fingerprint` | Hashes without payload |
-| `/api/v1/verify` | Verify signatures |
+| `/api/v1/verify` | Verify signatures (POST) |
 | `/api/v1/jobs` | Async job queue |
-| `/api/v1/oeis/*` | OEIS-compatible output |
-| `/api/v1/formats` | Multi-format export |
+| `/api/v1/oeis/*` | OEIS-compatible output (b-file, list, JSON) |
+| `/api/v1/formats` | Multi-format export (13 formats) |
+
+## Key Parameters (neighborhood endpoint)
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `n` | required | Prime index or value (bigint string) |
+| `n_type` | `index` | `index` (p(n)) or `value` (next prime ≥ n) |
+| `k` | 10 | Neighbors each side |
+| `include` | all | `primes,gaps,d2,ratio,indices` |
+| `proof` | `none` | `none`, `receipt`, `signed` |
 
 ## Export Formats (13 total)
 
-- **Tabular**: CSV, TSV
-- **CAS**: PARI/GP, Mathematica, SageMath, Maple
-- **LaTeX**: inline, table, array
-- **Programming**: NumPy, R, Julia
-- **Semantic**: JSON-LD
-- **OEIS**: b-file, list, internal
+CSV, TSV, PARI/GP, Mathematica, SageMath, Maple, LaTeX (3 variants), NumPy, R, Julia, JSON-LD
 
 ## Mathematical Model
 
 ```
-Gap:        g(n) = p(n+1) - p(n)
-Second diff: d2(n) = g(n+1) - g(n)
-Second ratio: r(n) = d2(n) / (p(n+2) - p(n))   # always in [-1, 1]
+Gap:           g(n) = p(n+1) - p(n)
+Second diff:   d2(n) = g(n+1) - g(n)
+Second ratio:  r(n) = d2(n) / (p(n+2) - p(n))   ∈ [-1, 1]
 ```
 
 ## Tech Stack
 
-- **Runtime**: Cloudflare Workers
-- **Framework**: Hono 4.x
+- **API Runtime**: Cloudflare Workers
+- **API Framework**: Hono 4.x
 - **Crypto**: @noble/ed25519, @noble/hashes
 - **Validation**: Zod
-- **Testing**: Vitest
-- **Deployment**: Wrangler 4.x
+- **Testing**: Vitest (99 tests)
+- **Static Site**: Cloudflare Pages
+- **Visualizations**: Plotly.js
 
 ## Commands
 
 ```bash
+# API
 cd api
-npm install          # Install dependencies
-npm run dev          # Local dev server (Node.js)
-npm run dev:worker   # Local Workers dev
-npm test             # Run 95 tests
-npm run deploy       # Deploy to Cloudflare
+npm install
+npm run dev          # Local dev server
+npm test             # Run 99 tests
+npm run deploy       # Deploy to Cloudflare Workers
+
+# Static Site
+npx wrangler pages deploy public --project-name=fractal-core
 ```
 
-## Key Implementation Details
+## Known Limitations
 
-1. **Lazy key initialization** - Keys generated on first access, not module load (Workers requirement)
-2. **Web Crypto API** - Uses `crypto.getRandomValues()` instead of Node.js `randomBytes`
-3. **btoa/atob for base64** - No Node.js `Buffer` (Workers compatibility)
-4. **No compress middleware** - Cloudflare handles compression at edge
+1. **Sieve limit**: The sieve engine only supports primes up to ~10 million. Values beyond this return 503 errors.
+2. **CORS**: Configured to allow all origins (`*`)
+3. **No persistent keys**: Ed25519 keys regenerated on cold start
 
-## Potential Enhancements
+## Recent Changes
 
-- [ ] Add more primality engines (Miller-Rabin, BPSW)
+- Fixed `n_type=value` to use **next prime ≥ value** (not closest)
+- Added frequency statistics to OEIS headers (top 10 d2/ratio values)
+- Added starting prime to all OEIS format headers
+- Fixed CSS overflow for long data sequences
+- Added explicit CORS configuration
+- Deployed GUI to Cloudflare Pages
+
+## Pending Tasks
+
+- [ ] Configure custom domain `fractal-core.com` (requires DNS setup in Cloudflare dashboard)
+- [ ] Add more primality engines (Miller-Rabin, BPSW) for large values
 - [ ] Persistent key storage (Workers KV or D1)
 - [ ] Rate limiting
-- [ ] Caching layer
-- [ ] Binary format response option
-- [ ] WebSocket for streaming large results
-- [ ] More sequence types (twin primes, Sophie Germain, etc.)
-- [ ] GUI improvements (graphs, search history)
-- [ ] Custom domain setup
+- [ ] Complete 3D terrain visualization testing
 
 ## Related OEIS Sequences
 
