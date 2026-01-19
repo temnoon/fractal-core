@@ -24,7 +24,13 @@ export function createApp() {
   // Middleware
   // Note: Cloudflare Workers handles compression at the edge
   app.use('*', logger());
-  app.use('*', cors());
+  app.use('*', cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Content-Type'],
+    exposeHeaders: ['Content-Length'],
+    maxAge: 86400,
+  }));
 
   // Error handling
   app.onError((err, c) => {

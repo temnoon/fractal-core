@@ -61,6 +61,9 @@
       padding: 15px;
       background: #fafafa;
       border: 1px solid #ddd;
+      overflow: hidden;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     .result h2 {
       font-size: 1.2em;
@@ -80,6 +83,8 @@
     }
     .sequence-line {
       margin: 5px 0;
+      overflow: hidden;
+      word-wrap: break-word;
     }
     .sequence-label {
       font-weight: bold;
@@ -88,6 +93,10 @@
     .sequence-data {
       font-family: monospace;
       color: #000;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      display: block;
+      max-width: 100%;
     }
     .meta {
       font-size: 12px;
