@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Terrain Visualizations</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-card: #0f1419;
+      --border: #1e2633;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #7ee787;
+      --accent3: #f78166;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 16px;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    /* Tab Navigation */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: var(--sans);
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+
+    /* Control Panel */
+    .controls {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-end;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control-group label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .control-group input, .control-group select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: var(--mono);
+      min-width: 120px;
+    }
+
+    .control-group input:focus, .control-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .btn {
+      background: var(--accent);
+      border: none;
+      color: #000;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    /* Visualization Container */
+    .viz-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: 500px;
+    }
+
+    .viz-panel {
+      display: none;
+      padding: 20px;
+    }
+
+    .viz-panel.active {
+      display: block;
+    }
+
+    .chart {
+      width: 100%;
+      height: 550px;
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      gap: 24px;
+      padding: 12px 20px;
+      background: rgba(88, 166, 255, 0.05);
+      border-top: 1px solid var(--border);
+    }
+
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stat-value {
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+
+    /* Loading overlay */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 400px;
+      color: var(--muted);
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Description cards */
+    .desc-card {
+      background: rgba(88, 166, 255, 0.05);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .desc-card h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      color: var(--accent);
+    }
+
+    .desc-card p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .formula {
+      font-family: var(--mono);
+      color: var(--accent2);
+      background: rgba(126, 231, 135, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    footer {
+      margin-top: 40px;
+      padding: 20px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Prime Terrain Visualizations</h1>
+      <nav class="nav-links">
+        <a href="gui.html">OEIS Explorer</a>
+        <a href="index.html">Physics Simulation</a>
+        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/status" target="_blank">API</a>
+      </nav>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="line">2D Line Chart</button>
+      <button class="tab-btn" data-tab="heatmap">2D Ratio Heatmap</button>
+      <button class="tab-btn" data-tab="terrain">3D Terrain</button>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="control-group">
+        <label>Start Index</label>
+        <input type="number" id="startIndex" value="1" min="1">
+      </div>
+      <div class="control-group">
+        <label>Count</label>
+        <input type="number" id="count" value="500" min="10" max="5000">
+      </div>
+      <div class="control-group">
+        <label>Data Series</label>
+        <select id="dataSeries">
+          <option value="all">All (Gaps, d2, Ratios)</option>
+          <option value="gaps">Gaps only</option>
+          <option value="d2">Second Differences only</option>
+          <option value="ratios">Ratios only</option>
+        </select>
+      </div>
+      <button class="btn" id="loadBtn">Load Data</button>
+      <button class="btn btn-secondary" id="exportBtn">Export PNG</button>
+    </div>
+
+    <!-- Visualization Panels -->
+    <div class="viz-container">
+      <!-- 2D Line Chart -->
+      <div class="viz-panel active" id="panel-line">
+        <div class="desc-card">
+          <h3>Prime Gaps & Second Differences</h3>
+          <p>
+            Visualizes how prime gaps <span class="formula">g(n) = p(n+1) - p(n)</span> and
+            second differences <span class="formula">d2(n) = g(n+1) - g(n)</span> evolve over the prime sequence.
+            Notice how gaps generally increase while d2 oscillates around zero.
+          </p>
+        </div>
+        <div id="lineChart" class="chart"></div>
+      </div>
+
+      <!-- 2D Heatmap -->
+      <div class="viz-panel" id="panel-heatmap">
+        <div class="desc-card">
+          <h3>Ratio Distribution Heatmap</h3>
+          <p>
+            Shows the frequency distribution of second ratios <span class="formula">r(n) = d2(n) / (p(n+2) - p(n))</span>.
+            The ratio is always in [-1, 1]. Brighter cells indicate more frequent values.
+            This reveals the "terrain" of local prime behavior.
+          </p>
+        </div>
+        <div id="heatmapChart" class="chart"></div>
+      </div>
+
+      <!-- 3D Terrain -->
+      <div class="viz-panel" id="panel-terrain">
+        <div class="desc-card">
+          <h3>3D Prime Terrain Surface</h3>
+          <p>
+            A three-dimensional view of the prime landscape. X-axis is the prime index,
+            Y-axis is the gap value, and Z (height/color) represents the second difference.
+            Drag to rotate, scroll to zoom. This is the literal "terrain" of prime neighborhoods.
+          </p>
+        </div>
+        <div id="terrainChart" class="chart"></div>
+      </div>
+
+      <!-- Stats bar -->
+      <div class="stats-bar">
+        <div class="stat">
+          <span class="stat-label">Primes:</span>
+          <span class="stat-value" id="statPrimes">-</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Start Prime:</span>
+          <span class="stat-value" id="statStart">-</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">End Prime:</span>
+          <span class="stat-value" id="statEnd">-</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Avg Gap:</span>
+          <span class="stat-value" id="statAvgGap">-</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Max Gap:</span>
+          <span class="stat-value" id="statMaxGap">-</span>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Prime Terrain API: <a href="https://prime-terrain-api.tem-527.workers.dev">prime-terrain-api.tem-527.workers.dev</a>
+      &nbsp;|&nbsp;
+      Related: <a href="https://oeis.org/A000040">A000040</a>,
+      <a href="https://oeis.org/A001223">A001223</a>,
+      <a href="https://oeis.org/A036263">A036263</a>
+    </footer>
+  </div>
+
+  <script>
+    const API = 'https://prime-terrain-api.tem-527.workers.dev/api/v1';
+
+    // State
+    let currentData = null;
+    let currentTab = 'line';
+
+    // DOM
+    const tabs = document.querySelectorAll('.tab-btn');
+    const panels = document.querySelectorAll('.viz-panel');
+    const loadBtn = document.getElementById('loadBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const startIndexInput = document.getElementById('startIndex');
+    const countInput = document.getElementById('count');
+    const dataSeriesSelect = document.getElementById('dataSeries');
+
+    // Plotly dark theme
+    const plotlyLayout = {
+      paper_bgcolor: '#0f1419',
+      plot_bgcolor: '#0a0e14',
+      font: { color: '#e6edf3', family: '-apple-system, sans-serif' },
+      xaxis: {
+        gridcolor: '#1e2633',
+        linecolor: '#1e2633',
+        zerolinecolor: '#1e2633',
+      },
+      yaxis: {
+        gridcolor: '#1e2633',
+        linecolor: '#1e2633',
+        zerolinecolor: '#1e2633',
+      },
+      margin: { t: 40, r: 40, b: 60, l: 60 },
+    };
+
+    const plotlyConfig = {
+      responsive: true,
+      displayModeBar: true,
+      modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+    };
+
+    // Tab switching
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        tabs.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        panels.forEach(p => p.classList.remove('active'));
+        document.getElementById(`panel-${tab}`).classList.add('active');
+        currentTab = tab;
+
+        if (currentData) {
+          renderCurrentTab();
+        }
+      });
+    });
+
+    // Load data from API
+    async function loadData() {
+      const start = parseInt(startIndexInput.value) || 1;
+      const count = Math.min(parseInt(countInput.value) || 500, 5000);
+
+      loadBtn.disabled = true;
+      loadBtn.textContent = 'Loading...';
+
+      try {
+        const url = `${API}/neighborhood?n=${start}&n_type=index&k=${Math.floor(count/2)}&include=primes,gaps,d2,ratio,indices`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.error) {
+          alert('Error: ' + data.error);
+          return;
+        }
+
+        currentData = data.result;
+        updateStats();
+        renderCurrentTab();
+      } catch (err) {
+        alert('Failed to load data: ' + err.message);
+      } finally {
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Load Data';
+      }
+    }
+
+    // Update stats bar
+    function updateStats() {
+      if (!currentData) return;
+
+      const primes = currentData.primes || [];
+      const gaps = currentData.gaps || [];
+
+      document.getElementById('statPrimes').textContent = primes.length.toLocaleString();
+      document.getElementById('statStart').textContent = primes[0] || '-';
+      document.getElementById('statEnd').textContent = primes[primes.length - 1] || '-';
+
+      if (gaps.length > 0) {
+        const gapsNum = gaps.map(g => parseInt(g));
+        const avgGap = (gapsNum.reduce((a, b) => a + b, 0) / gapsNum.length).toFixed(2);
+        const maxGap = Math.max(...gapsNum);
+        document.getElementById('statAvgGap').textContent = avgGap;
+        document.getElementById('statMaxGap').textContent = maxGap;
+      }
+    }
+
+    // Render based on current tab
+    function renderCurrentTab() {
+      switch (currentTab) {
+        case 'line':
+          renderLineChart();
+          break;
+        case 'heatmap':
+          renderHeatmap();
+          break;
+        case 'terrain':
+          render3DTerrain();
+          break;
+      }
+    }
+
+    // 2D Line Chart
+    function renderLineChart() {
+      if (!currentData) return;
+
+      const indices = currentData.indices || [];
+      const gaps = (currentData.gaps || []).map(g => parseInt(g));
+      const d2 = (currentData.d2 || []).map(d => parseInt(d));
+      const ratios = (currentData.ratio || []).map(r => r.num / r.den);
+
+      const series = dataSeriesSelect.value;
+      const traces = [];
+
+      if (series === 'all' || series === 'gaps') {
+        traces.push({
+          x: indices.slice(0, gaps.length),
+          y: gaps,
+          name: 'Gaps g(n)',
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: '#58a6ff', width: 1.5 },
+        });
+      }
+
+      if (series === 'all' || series === 'd2') {
+        traces.push({
+          x: indices.slice(0, d2.length),
+          y: d2,
+          name: 'Second Diff d2(n)',
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: '#7ee787', width: 1.5 },
+          yaxis: series === 'all' ? 'y2' : 'y',
+        });
+      }
+
+      if (series === 'ratios') {
+        traces.push({
+          x: indices.slice(0, ratios.length),
+          y: ratios,
+          name: 'Ratio r(n)',
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: '#f78166', width: 1.5 },
+        });
+      }
+
+      const layout = {
+        ...plotlyLayout,
+        title: 'Prime Gaps & Second Differences Over Index',
+        xaxis: { ...plotlyLayout.xaxis, title: 'Prime Index n' },
+        yaxis: { ...plotlyLayout.yaxis, title: series === 'ratios' ? 'Ratio r(n)' : 'Gap g(n)' },
+        showlegend: true,
+        legend: { x: 0.02, y: 0.98, bgcolor: 'rgba(15,20,25,0.8)' },
+      };
+
+      if (series === 'all') {
+        layout.yaxis2 = {
+          ...plotlyLayout.yaxis,
+          title: 'Second Diff d2(n)',
+          overlaying: 'y',
+          side: 'right',
+          gridcolor: 'transparent',
+        };
+      }
+
+      Plotly.newPlot('lineChart', traces, layout, plotlyConfig);
+    }
+
+    // 2D Heatmap
+    function renderHeatmap() {
+      if (!currentData || !currentData.ratio) return;
+
+      const ratios = currentData.ratio.map(r => parseFloat(r.num) / parseFloat(r.den));
+      const indices = currentData.indices || [];
+
+      // Bin ratios into a 2D grid
+      const binCount = 50;
+      const indexBins = 20;
+
+      // Create bins for ratio values (-1 to 1)
+      const ratioBins = [];
+      for (let i = 0; i < binCount; i++) {
+        ratioBins.push(-1 + (2 * i / binCount));
+      }
+
+      // Create index bins
+      const minIdx = Math.min(...indices);
+      const maxIdx = Math.max(...indices);
+      const idxStep = Math.ceil((maxIdx - minIdx) / indexBins);
+
+      // Build heatmap data
+      const z = [];
+      const yLabels = [];
+      const xLabels = [];
+
+      for (let i = 0; i < indexBins; i++) {
+        const idxStart = minIdx + i * idxStep;
+        const idxEnd = idxStart + idxStep;
+        xLabels.push(`${idxStart}`);
+
+        const row = new Array(binCount).fill(0);
+
+        for (let j = 0; j < ratios.length; j++) {
+          const idx = indices[j];
+          if (idx >= idxStart && idx < idxEnd) {
+            const r = ratios[j];
+            const rBin = Math.floor((r + 1) / 2 * (binCount - 1));
+            if (rBin >= 0 && rBin < binCount) {
+              row[rBin]++;
+            }
+          }
+        }
+        z.push(row);
+      }
+
+      for (let i = 0; i < binCount; i++) {
+        yLabels.push((-1 + 2 * i / binCount).toFixed(2));
+      }
+
+      const trace = {
+        z: z,
+        x: xLabels,
+        y: yLabels,
+        type: 'heatmap',
+        colorscale: [
+          [0, '#0a0e14'],
+          [0.2, '#1a365d'],
+          [0.4, '#2563eb'],
+          [0.6, '#7c3aed'],
+          [0.8, '#db2777'],
+          [1, '#fbbf24'],
+        ],
+        showscale: true,
+        colorbar: {
+          title: 'Frequency',
+          titleside: 'right',
+        },
+      };
+
+      const layout = {
+        ...plotlyLayout,
+        title: 'Ratio Distribution Heatmap',
+        xaxis: { ...plotlyLayout.xaxis, title: 'Prime Index Range', tickangle: -45 },
+        yaxis: { ...plotlyLayout.yaxis, title: 'Second Ratio r(n)' },
+      };
+
+      Plotly.newPlot('heatmapChart', [trace], layout, plotlyConfig);
+    }
+
+    // 3D Terrain Surface
+    function render3DTerrain() {
+      if (!currentData) return;
+
+      const indices = currentData.indices || [];
+      const gaps = (currentData.gaps || []).map(g => parseInt(g));
+      const d2 = (currentData.d2 || []).map(d => parseInt(d));
+
+      // Sample data for performance (3D can be heavy)
+      const sampleSize = Math.min(200, indices.length);
+      const step = Math.max(1, Math.floor(indices.length / sampleSize));
+
+      const x = [];
+      const y = [];
+      const z = [];
+      const colors = [];
+
+      for (let i = 0; i < indices.length - 1 && i < d2.length; i += step) {
+        x.push(indices[i]);
+        y.push(gaps[i] || 0);
+        z.push(d2[i] || 0);
+        colors.push(d2[i] || 0);
+      }
+
+      // Create a pseudo-surface by making a 2D grid
+      // We'll use scatter3d with markers for the terrain effect
+      const trace = {
+        x: x,
+        y: y,
+        z: z,
+        mode: 'markers',
+        type: 'scatter3d',
+        marker: {
+          size: 4,
+          color: colors,
+          colorscale: [
+            [0, '#f78166'],
+            [0.25, '#fbbf24'],
+            [0.5, '#7ee787'],
+            [0.75, '#58a6ff'],
+            [1, '#a855f7'],
+          ],
+          colorbar: {
+            title: 'd2',
+            titleside: 'right',
+          },
+          opacity: 0.8,
+        },
+        name: 'Prime Terrain',
+      };
+
+      // Add a mesh surface if we have enough points
+      const surfaceTrace = {
+        x: x,
+        y: y,
+        z: z,
+        type: 'mesh3d',
+        opacity: 0.4,
+        color: '#58a6ff',
+        alphahull: 7,
+      };
+
+      const layout = {
+        ...plotlyLayout,
+        title: '3D Prime Terrain',
+        scene: {
+          xaxis: { title: 'Prime Index', gridcolor: '#1e2633', color: '#e6edf3' },
+          yaxis: { title: 'Gap g(n)', gridcolor: '#1e2633', color: '#e6edf3' },
+          zaxis: { title: 'Second Diff d2(n)', gridcolor: '#1e2633', color: '#e6edf3' },
+          bgcolor: '#0a0e14',
+          camera: {
+            eye: { x: 1.5, y: 1.5, z: 1.2 },
+          },
+        },
+        margin: { t: 40, r: 20, b: 20, l: 20 },
+      };
+
+      Plotly.newPlot('terrainChart', [trace], layout, plotlyConfig);
+    }
+
+    // Export as PNG
+    exportBtn.addEventListener('click', () => {
+      const chartId = currentTab === 'line' ? 'lineChart' :
+                      currentTab === 'heatmap' ? 'heatmapChart' : 'terrainChart';
+
+      Plotly.downloadImage(chartId, {
+        format: 'png',
+        width: 1920,
+        height: 1080,
+        filename: `prime-terrain-${currentTab}`,
+      });
+    });
+
+    // Load button
+    loadBtn.addEventListener('click', loadData);
+
+    // Initial load
+    loadData();
+  </script>
+</body>
+</html>
