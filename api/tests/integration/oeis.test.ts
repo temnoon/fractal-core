@@ -53,8 +53,11 @@ describe('OEIS-compatible API', () => {
       expect(res.status).toBe(200);
 
       const text = await res.text();
-      const lines = text.trim().split('\n');
+      // Filter out header comment lines
+      const lines = text.trim().split('\n').filter(line => !line.startsWith('#'));
       expect(lines).toEqual(['2', '3', '5', '7', '11']);
+      // Also verify header includes starting prime
+      expect(text).toContain('# Starting prime: p(0) = 2');
     });
   });
 

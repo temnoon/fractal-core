@@ -30,6 +30,9 @@ export interface SieveEngine {
   /** Find closest prime to value */
   closestPrime(n: bigint): { prime: bigint; index: number };
 
+  /** Find next prime >= value (for n_type=value lookups) */
+  nextPrime(n: bigint): { prime: bigint; index: number };
+
   /** Engine identifier */
   readonly name: 'sieve';
 }
@@ -233,6 +236,25 @@ export function createSieveEngine(): SieveEngine {
       } else {
         return { prime: upper, index: idx };
       }
+    },
+
+    nextPrime(n: bigint): { prime: bigint; index: number } {
+      if (n < 2n) return { prime: 2n, index: 0 };
+
+      ensureSieved(n + 1000n); // Look ahead a bit
+
+      const idx = lowerBound(cachedPrimes, n);
+
+      // lowerBound returns first index where prime >= n
+      // If exact match, that's our prime. If not, it's the next prime.
+      if (idx < cachedPrimes.length) {
+        return { prime: cachedPrimes[idx], index: idx };
+      }
+
+      // Edge case: n is beyond our sieve, extend and retry
+      ensureSieved(n * 2n);
+      const newIdx = lowerBound(cachedPrimes, n);
+      return { prime: cachedPrimes[newIdx], index: newIdx };
     },
   };
 }

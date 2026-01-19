@@ -125,4 +125,37 @@ describe('sieve engine', () => {
       expect(engine.closestPrime(1n).prime).toBe(2n);
     });
   });
+
+  describe('nextPrime', () => {
+    it('returns exact match when value is prime', () => {
+      const result = engine.nextPrime(13n);
+      expect(result.prime).toBe(13n);
+      expect(result.index).toBe(5);
+    });
+
+    it('returns next prime for non-primes (always forward)', () => {
+      // 20 is not prime; primes around it: 19, 23
+      // nextPrime should return 23 (not 19)
+      expect(engine.nextPrime(20n).prime).toBe(23n);
+
+      // 50 is not prime; primes around it: 47, 53
+      // nextPrime should return 53 (not 47)
+      expect(engine.nextPrime(50n).prime).toBe(53n);
+
+      // 100 is not prime; primes around it: 97, 101
+      // nextPrime should return 101 (not 97)
+      expect(engine.nextPrime(100n).prime).toBe(101n);
+    });
+
+    it('handles values below 2', () => {
+      expect(engine.nextPrime(0n).prime).toBe(2n);
+      expect(engine.nextPrime(1n).prime).toBe(2n);
+    });
+
+    it('returns correct index', () => {
+      // 23 is p[8] (0-indexed)
+      const result = engine.nextPrime(20n);
+      expect(result.index).toBe(8);
+    });
+  });
 });

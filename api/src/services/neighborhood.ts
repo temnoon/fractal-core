@@ -70,10 +70,11 @@ export function computeNeighborhood(options: ComputeOptions): NeighborhoodData {
     centerIndex = Number(n);
     centerPrime = sieveEngine.primeAtIndex(centerIndex);
   } else {
-    // n_type === 'value'
-    const closest = sieveEngine.closestPrime(n);
-    centerIndex = closest.index;
-    centerPrime = closest.prime;
+    // n_type === 'value': find next prime >= n (not closest)
+    // This ensures we always move forward from the given value
+    const next = sieveEngine.nextPrime(n);
+    centerIndex = next.index;
+    centerPrime = next.prime;
   }
 
   let primes: bigint[];

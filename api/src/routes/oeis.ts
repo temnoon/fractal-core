@@ -115,8 +115,16 @@ oeisRoute.get('/primes', (c) => {
     primes.push(sieveEngine.primeAtIndex(startIdx + i));
   }
 
+  const startPrime = primes[0];
+
   if (format === 'bfile') {
-    return c.text(formatBfile(primes, startIdx));
+    const header = [
+      '# Prime numbers',
+      '# Related: OEIS A000040',
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '#',
+    ];
+    return c.text(header.join('\n') + '\n' + formatBfile(primes, startIdx));
   }
 
   if (format === 'internal') {
@@ -124,7 +132,11 @@ oeisRoute.get('/primes', (c) => {
   }
 
   if (format === 'list') {
-    return c.text(formatList(primes));
+    const header = [
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '#',
+    ];
+    return c.text(header.join('\n') + '\n' + formatList(primes));
   }
 
   // JSON format
@@ -157,6 +169,9 @@ oeisRoute.get('/gaps', (c) => {
   const startIdx = parseInt(start, 10);
   const n = Math.min(parseInt(count, 10), 10000);
 
+  // Get starting prime
+  const startPrime = sieveEngine.primeAtIndex(startIdx);
+
   // Compute gaps: g(n) = p(n+1) - p(n)
   const gaps: bigint[] = [];
   for (let i = 0; i < n; i++) {
@@ -165,8 +180,20 @@ oeisRoute.get('/gaps', (c) => {
     gaps.push(p2 - p1);
   }
 
+  // Compute frequency statistics
+  const commonGaps = computeFrequencies(gaps, 10);
+
   if (format === 'bfile') {
-    return c.text(formatBfile(gaps, startIdx));
+    const header = [
+      '# Prime gaps: g(n) = p(n+1) - p(n)',
+      '# Related: OEIS A001223',
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '#',
+      '# Most common gap values in this range:',
+      ...commonGaps.map((f, i) => `#   ${i + 1}. gap = ${f.value}: ${f.count} times (${f.percent})`),
+      '#',
+    ];
+    return c.text(header.join('\n') + '\n' + formatBfile(gaps, startIdx));
   }
 
   if (format === 'internal') {
@@ -174,7 +201,13 @@ oeisRoute.get('/gaps', (c) => {
   }
 
   if (format === 'list') {
-    return c.text(formatList(gaps));
+    const header = [
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '# Most common gap values:',
+      ...commonGaps.map((f) => `#   ${f.value}: ${f.count} (${f.percent})`),
+      '#',
+    ];
+    return c.text(header.join('\n') + '\n' + formatList(gaps));
   }
 
   const seq: OeisSequence = {
@@ -189,7 +222,14 @@ oeisRoute.get('/gaps', (c) => {
     formula: ['g(n) = prime(n+1) - prime(n)', 'g(n) = A000040(n+1) - A000040(n)'],
   };
 
-  return c.json(formatOeisJson(seq));
+  // Add frequency statistics to JSON response
+  const result = formatOeisJson(seq);
+  (result as any).results[0].statistics = {
+    total_terms: n,
+    common_gap_values: commonGaps,
+  };
+
+  return c.json(result);
 });
 
 /**
@@ -207,19 +247,46 @@ oeisRoute.get('/d2', (c) => {
   const startIdx = parseInt(start, 10);
   const n = Math.min(parseInt(count, 10), 10000);
 
-  // Compute d2: d2(n) = g(n+1) - g(n)
+  // Get starting prime
+  const startPrime = sieveEngine.primeAtIndex(startIdx);
+
+  // Compute d2 and corresponding ratios: d2(n) = g(n+1) - g(n)
   const d2: bigint[] = [];
+  const ratios: { num: bigint; den: bigint }[] = [];
   for (let i = 0; i < n; i++) {
     const p0 = sieveEngine.primeAtIndex(startIdx + i);
     const p1 = sieveEngine.primeAtIndex(startIdx + i + 1);
     const p2 = sieveEngine.primeAtIndex(startIdx + i + 2);
     const g0 = p1 - p0;
     const g1 = p2 - p1;
-    d2.push(g1 - g0);
+    const d2val = g1 - g0;
+    const span = p2 - p0;
+    d2.push(d2val);
+
+    // Compute reduced ratio
+    const g = gcd(d2val < 0n ? -d2val : d2val, span);
+    ratios.push({ num: d2val / g, den: span / g });
   }
 
+  // Compute frequency statistics
+  const commonD2 = computeFrequencies(d2, 10);
+  const commonRatios = computeRatioFrequencies(ratios, 10);
+
   if (format === 'bfile') {
-    return c.text(formatBfile(d2, startIdx));
+    // Include frequency header in b-file comments
+    const header = [
+      '# Second differences of primes: d2(n) = g(n+1) - g(n)',
+      '# Related: OEIS A036263',
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '#',
+      '# Most common d2 values in this range:',
+      ...commonD2.map((f, i) => `#   ${i + 1}. d2 = ${f.value}: ${f.count} times (${f.percent})`),
+      '#',
+      '# Corresponding most common ratios r(n) = d2(n)/(p(n+2)-p(n)):',
+      ...commonRatios.map((f, i) => `#   ${i + 1}. r = ${f.value}: ${f.count} times (${f.percent})`),
+      '#',
+    ];
+    return c.text(header.join('\n') + '\n' + formatBfile(d2, startIdx));
   }
 
   if (format === 'internal') {
@@ -227,7 +294,16 @@ oeisRoute.get('/d2', (c) => {
   }
 
   if (format === 'list') {
-    return c.text(formatList(d2));
+    // Include frequency header as comments
+    const header = [
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '# Most common d2 values:',
+      ...commonD2.map((f) => `#   ${f.value}: ${f.count} (${f.percent})`),
+      '# Most common ratios:',
+      ...commonRatios.map((f) => `#   ${f.value}: ${f.count} (${f.percent})`),
+      '#',
+    ];
+    return c.text(header.join('\n') + '\n' + formatList(d2));
   }
 
   const seq: OeisSequence = {
@@ -246,7 +322,15 @@ oeisRoute.get('/d2', (c) => {
     ],
   };
 
-  return c.json(formatOeisJson(seq));
+  // Add frequency statistics to JSON response
+  const result = formatOeisJson(seq);
+  (result as any).results[0].statistics = {
+    total_terms: n,
+    common_d2_values: commonD2,
+    common_ratios: commonRatios,
+  };
+
+  return c.json(result);
 });
 
 /**
@@ -264,8 +348,12 @@ oeisRoute.get('/ratios', (c) => {
   const startIdx = parseInt(start, 10);
   const n = Math.min(parseInt(count, 10), 10000);
 
+  // Get starting prime
+  const startPrime = sieveEngine.primeAtIndex(startIdx);
+
   // Compute ratios as [numerator, denominator] pairs
   const ratios: { num: bigint; den: bigint }[] = [];
+  const d2Values: bigint[] = [];
   for (let i = 0; i < n; i++) {
     const p0 = sieveEngine.primeAtIndex(startIdx + i);
     const p1 = sieveEngine.primeAtIndex(startIdx + i + 1);
@@ -273,19 +361,45 @@ oeisRoute.get('/ratios', (c) => {
     const d2 = (p2 - p1) - (p1 - p0);
     const span = p2 - p0;
 
+    d2Values.push(d2);
+
     // Reduce fraction
     const g = gcd(d2 < 0n ? -d2 : d2, span);
     ratios.push({ num: d2 / g, den: span / g });
   }
 
+  // Compute frequency statistics
+  const commonRatios = computeRatioFrequencies(ratios, 10);
+  const commonD2 = computeFrequencies(d2Values, 10);
+
   if (format === 'bfile') {
-    // For ratios, output as "index numerator/denominator"
+    // For ratios, output as "index numerator/denominator" with header
+    const header = [
+      '# Second ratios: r(n) = d2(n) / (p(n+2) - p(n))',
+      '# Values always in [-1, 1]',
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '#',
+      '# Most common ratio values in this range:',
+      ...commonRatios.map((f, i) => `#   ${i + 1}. r = ${f.value}: ${f.count} times (${f.percent})`),
+      '#',
+      '# Corresponding most common d2 values:',
+      ...commonD2.map((f, i) => `#   ${i + 1}. d2 = ${f.value}: ${f.count} times (${f.percent})`),
+      '#',
+    ];
     const lines = ratios.map((r, i) => `${startIdx + i} ${r.num}/${r.den}`);
-    return c.text(lines.join('\n'));
+    return c.text(header.join('\n') + '\n' + lines.join('\n'));
   }
 
   if (format === 'list') {
-    return c.text(ratios.map((r) => `${r.num}/${r.den}`).join('\n'));
+    const header = [
+      `# Starting prime: p(${startIdx}) = ${startPrime}`,
+      '# Most common ratio values:',
+      ...commonRatios.map((f) => `#   ${f.value}: ${f.count} (${f.percent})`),
+      '# Most common d2 values:',
+      ...commonD2.map((f) => `#   ${f.value}: ${f.count} (${f.percent})`),
+      '#',
+    ];
+    return c.text(header.join('\n') + '\n' + ratios.map((r) => `${r.num}/${r.den}`).join('\n'));
   }
 
   // JSON format with both numerators and denominators
@@ -313,10 +427,15 @@ oeisRoute.get('/ratios', (c) => {
     ],
   };
 
-  // Add separate arrays for numerators and denominators
+  // Add separate arrays for numerators and denominators + statistics
   const result = formatOeisJson(seq);
   (result as any).results[0].numerators = ratios.slice(0, 100).map((r) => r.num.toString());
   (result as any).results[0].denominators = ratios.slice(0, 100).map((r) => r.den.toString());
+  (result as any).results[0].statistics = {
+    total_terms: n,
+    common_ratios: commonRatios,
+    common_d2_values: commonD2,
+  };
 
   return c.json(result);
 });
@@ -466,4 +585,51 @@ function gcd(a: bigint, b: bigint): bigint {
     a = t;
   }
   return a === 0n ? 1n : a;
+}
+
+/**
+ * Compute frequency of values and return top N most common
+ */
+function computeFrequencies(values: bigint[], topN: number = 10): { value: string; count: number; percent: string }[] {
+  const freq = new Map<string, number>();
+  for (const v of values) {
+    const key = v.toString();
+    freq.set(key, (freq.get(key) || 0) + 1);
+  }
+
+  const sorted = Array.from(freq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN);
+
+  const total = values.length;
+  return sorted.map(([value, count]) => ({
+    value,
+    count,
+    percent: ((count / total) * 100).toFixed(2) + '%',
+  }));
+}
+
+/**
+ * Compute ratio frequencies
+ */
+function computeRatioFrequencies(
+  ratios: { num: bigint; den: bigint }[],
+  topN: number = 10
+): { value: string; count: number; percent: string }[] {
+  const freq = new Map<string, number>();
+  for (const r of ratios) {
+    const key = `${r.num}/${r.den}`;
+    freq.set(key, (freq.get(key) || 0) + 1);
+  }
+
+  const sorted = Array.from(freq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN);
+
+  const total = ratios.length;
+  return sorted.map(([value, count]) => ({
+    value,
+    count,
+    percent: ((count / total) * 100).toFixed(2) + '%',
+  }));
 }
