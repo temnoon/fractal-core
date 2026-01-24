@@ -51,6 +51,27 @@ Base URL: `https://fractal-core.com/api/v1`
 | `/jobs` | POST | Create async job for large requests |
 | `/jobs/{job_id}` | GET | Job status |
 | `/jobs/{job_id}/result` | GET | Job result |
+| `/users/me` | GET | Current user info + usage (auth required) |
+| `/users` | POST | Create user (admin only) |
+| `/api-keys` | POST | Create API key (auth required) |
+| `/api-keys` | GET | List user's API keys (auth required) |
+| `/api-keys/:prefix` | DELETE | Revoke API key (auth required) |
+
+### Authentication
+
+API keys are passed via headers:
+- `Authorization: Bearer frc_...` (preferred)
+- `X-API-Key: frc_...`
+
+**API Key Format**: `frc_<32 alphanumeric chars>` (e.g., `frc_a7B3c9D5e1F8g2H4j6K0l8M1n3O9p5Q7`)
+
+### User Tiers
+
+| Tier | CPU Time/Month | Req/Min | Expensive/Min | Async Jobs |
+|------|----------------|---------|---------------|------------|
+| free | 5 minutes | 100 | 20 | 5 |
+| pro | unlimited (pay-per-use) | 500 | 100 | 50 |
+| enterprise | custom | 2000 | 500 | 500 |
 
 ### Key Query Parameters
 

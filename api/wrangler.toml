@@ -2,11 +2,23 @@ name = "prime-terrain-api"
 main = "src/worker.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Custom domain route
+routes = [
+  { pattern = "api.fractal-core.com/*", zone_name = "fractal-core.com" }
+]
+
+# KV namespace for persistent key storage (signing keys, rate limits)
+[[kv_namespaces]]
+binding = "KEYS_KV"
+id = "6b7952e0fd9b4f93ad8335c28d590360"
+
+# KV namespace for user data, API keys, and usage records
+[[kv_namespaces]]
+binding = "USERS_KV"
+id = "e5932603e8af47d6bbc55b8a772f3657"
 
 [vars]
 ENVIRONMENT = "production"
-
-# Optional: Add custom domain
-# routes = [
-#   { pattern = "api.fractal-core.com/*", zone_name = "fractal-core.com" }
-# ]
+# ADMIN_API_KEY should be set via wrangler secret put ADMIN_API_KEY

@@ -3,15 +3,34 @@
  */
 
 import { Hono } from 'hono';
+import type { Env } from '../types/env.js';
+import type { AuthContext } from '../types/user.js';
+import { TIER_LIMITS } from '../types/user.js';
 import { JobCreateSchema, toCanonicalRequest } from '../schemas/query-params.js';
-import { createJob, getJob, listJobs, deleteJob } from '../services/job-queue.js';
+import { createJob, getJob, listJobs, deleteJob, countUserJobs } from '../services/job-queue.js';
 import type { JobCreatedResponse, JobStatusResponse } from '../types/api.js';
 import type { IncludeField } from '../types/neighborhood.js';
 
-export const jobsRoute = new Hono();
+export const jobsRoute = new Hono<{ Bindings: Env }>();
 
 // Create a new job
 jobsRoute.post('/', async (c) => {
+  // Check async job limits based on tier
+  const auth = c.get('auth') as AuthContext | null;
+  const limits = auth?.limits || TIER_LIMITS.free;
+  const userId = auth?.user.id;
+
+  // Count active jobs for this user (or IP for unauthenticated)
+  const activeJobs = countUserJobs(userId);
+  if (activeJobs >= limits.asyncJobs) {
+    return c.json({
+      error: 'Async job limit exceeded',
+      message: `Maximum of ${limits.asyncJobs} concurrent async jobs allowed for your tier.`,
+      active_jobs: activeJobs,
+      limit: limits.asyncJobs,
+    }, 429);
+  }
+
   let body: unknown;
   try {
     body = await c.req.json();
@@ -48,7 +67,7 @@ jobsRoute.post('/', async (c) => {
     compress: data.compress,
   };
 
-  const job = createJob(request);
+  const job = createJob(request, userId);
 
   const response: JobCreatedResponse = {
     job_id: job.id,
