@@ -9,6 +9,9 @@ export interface Env {
   // KV namespace for user data, API keys, and usage records
   USERS_KV?: KVNamespace;
 
+  // KV namespace for LPP data (nodes, repeaters, epochs)
+  LPP_KV?: KVNamespace;
+
   // Environment variables
   ENVIRONMENT?: string;
 

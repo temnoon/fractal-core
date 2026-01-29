@@ -8,9 +8,11 @@ Prime Terrain is a prime neighborhood explorer with a REST API, minimal GUI, and
 
 | Service | URL |
 |---------|-----|
-| **API** | https://prime-terrain-api.tem-527.workers.dev |
-| **GUI** (Pages) | https://fractal-core-c96.pages.dev |
-| **Custom Domain** | https://fractal-core.com (pending DNS setup) |
+| **API** | https://api.fractal-core.com |
+| **API** (workers.dev) | https://prime-terrain-api.tem-527.workers.dev |
+| **GUI** | https://fractal-core.com |
+| **GUI** (www) | https://www.fractal-core.com |
+| **GUI** (pages.dev) | https://fractal-core-c96.pages.dev |
 
 ## Repository Structure
 
@@ -32,6 +34,9 @@ fractal-core/
 │   └── package.json
 ├── public/                 # Static site for Cloudflare Pages
 │   ├── index.html          # GUI (OEIS Explorer) - homepage
+│   ├── flames.html         # Flame fractal genome generator
+│   ├── player.html         # WebGL flame player (browser-based renderer)
+│   ├── svg.html            # SVG fractal gallery (6 visualization modes)
 │   ├── simulation.html     # Physics-based visualization
 │   └── visualizations.html # 2D/3D data visualizations
 ├── gui.html                # Source GUI file
@@ -56,6 +61,12 @@ fractal-core/
 | `/api/v1/jobs` | Async job queue |
 | `/api/v1/oeis/*` | OEIS-compatible output (b-file, list, JSON) |
 | `/api/v1/formats` | Multi-format export (13 formats) |
+| `/api/v1/flame` | Flame fractal genome generator (flam3 XML) |
+| `/api/v1/flame/info` | Flame generator documentation |
+| `/api/v1/flame/preview` | Preview flame data without download |
+| `/api/v1/svg` | SVG vector fractal generator (6 modes) |
+| `/api/v1/svg/info` | SVG generator documentation |
+| `/api/v1/svg/gallery` | Gallery of all modes for a prime |
 
 ## Key Parameters (neighborhood endpoint)
 
@@ -103,28 +114,138 @@ npm run deploy       # Deploy to Cloudflare Workers
 npx wrangler pages deploy public --project-name=fractal-core
 ```
 
+## Primality Engines
+
+| Engine | Range | Method |
+|--------|-------|--------|
+| Sieve | Up to 10 million | Sieve of Eratosthenes (O(1) lookup) |
+| Miller-Rabin | Up to ~10^24 | Deterministic with known witnesses |
+| BPSW | Arbitrarily large | Baillie-PSW (no known counterexamples) |
+
+The unified `primeEngine` automatically selects the best engine based on input size.
+
 ## Known Limitations
 
-1. **Sieve limit**: The sieve engine only supports primes up to ~10 million. Values beyond this return 503 errors.
+1. **Large indices**: For indices > 500,000, use async jobs endpoint for chunked processing
 2. **CORS**: Configured to allow all origins (`*`)
-3. **No persistent keys**: Ed25519 keys regenerated on cold start
+3. **Rate limits**: 100 req/min general, 20 req/min for computation-heavy endpoints
 
-## Recent Changes
+## Recent Changes (2026-01-29: LPP Session)
 
-- Fixed `n_type=value` to use **next prime ≥ value** (not closest)
-- Added frequency statistics to OEIS headers (top 10 d2/ratio values)
-- Added starting prime to all OEIS format headers
-- Fixed CSS overflow for long data sequences
-- Added explicit CORS configuration
-- Deployed GUI to Cloudflare Pages
+### Lamish Pulse Protocol (LPP) — Full Implementation
 
-## Pending Tasks
+**RFC**: `RFC-002-Lamish-Pulse-Protocol.md` — complete protocol specification
+**Source conversation**: `/Users/tem/Downloads/Lamish Pulse Protocols/conversation.json`
 
-- [ ] Configure custom domain `fractal-core.com` (requires DNS setup in Cloudflare dashboard)
-- [ ] Add more primality engines (Miller-Rabin, BPSW) for large values
-- [ ] Persistent key storage (Workers KV or D1)
-- [ ] Rate limiting
-- [ ] Complete 3D terrain visualization testing
+#### New Files Created
+| File | Purpose |
+|------|---------|
+| `api/src/types/lpp.ts` | All LPP type definitions (PulseEvent, LPPAddress, LamishPacket, PostSocialNode, etc.) |
+| `api/src/services/lpp-pulse.ts` | Pulse epoch management, fingerprint generation, KV-backed |
+| `api/src/services/lpp-sync.ts` | Δ² sequence matching (bidirectional: sequence→prime and prime→sequence) |
+| `api/src/services/lpp-nodes.ts` | Node/repeater CRUD, routing, topology (all async/KV-backed) |
+| `api/src/services/lpp-storage.ts` | KV persistence layer with in-memory fallback |
+| `api/src/routes/lpp.ts` | All LPP endpoints + WebSocket pulse stream |
+
+#### Modified Files
+| File | Change |
+|------|--------|
+| `api/src/types/env.ts` | Added `LPP_KV` binding |
+| `api/src/app.ts` | Imported and mounted `/lpp` route at `/api/v1/lpp` |
+| `api/wrangler.toml` | Added `LPP_KV` namespace (needs real ID) |
+
+#### LPP Endpoints (all under `/api/v1/lpp`)
+| Endpoint | Description |
+|----------|-------------|
+| `GET /lpp/pulse` | Current pulse state |
+| `GET /lpp/pulse/:index` | Pulse at specific index |
+| `GET /lpp/epoch` | Epoch info |
+| `WSS /lpp/stream` | Live WebSocket pulse stream (1s interval) |
+| `GET /lpp/stream/status` | Connected client count |
+| `GET /lpp/sync?sequence=...` | Match Δ² sequence to prime position |
+| `GET /lpp/fingerprint?prime_index=...` | Get fingerprint at index |
+| `GET /lpp/address?prime_index=...` | Generate LPP address |
+| `POST /lpp/repeaters` | Register repeater |
+| `GET /lpp/repeaters` | List repeaters |
+| `POST /lpp/nodes` | Register Post-Social node |
+| `GET /lpp/nodes` | List nodes (filterable) |
+| `GET /lpp/route?from=...&to=...` | Compute route between nodes |
+| `GET /lpp/topology` | Network summary |
+| `GET /lpp/storage` | KV stats (debug) |
+
+#### Key Design Decisions
+- **Pulse interval**: 1 second
+- **Transport**: WebSocket primary, IPv6 optional enhancement
+- **Domain structure**: `*.post-social.com` subdomains as repeaters, LPP addresses anchor to `fractal-core.com`
+- **256-bit prime neighborhood**: Cosmic scale reference (13B years at Planck time)
+- **KV storage**: Cloudflare KV with in-memory fallback
+
+#### Architecture
+```
+fractal-core.com (pulse origin, 1s heartbeat)
+├── /api/v1/lpp/stream         ← WebSocket pulse
+├── science.post-social.com    (repeater)
+│   └── arxiv_1706.03762       (Attention Is All You Need curator)
+├── literature.post-social.com (repeater)
+│   └── gutenberg nodes        (books)
+└── philosophy.post-social.com (repeater)
+```
+
+#### What Remains
+- [ ] `wrangler kv:namespace create LPP_KV` → update ID in wrangler.toml
+- [ ] Deploy and test endpoints
+- [ ] Add auth requirement to POST endpoints (registration)
+- [ ] Add LPP to capabilities response
+- [ ] Test WebSocket in production
+- [ ] Build client that syncs to pulse stream
+- [ ] Register first repeater and first Post-Social node
+- [ ] Curator agent implementation (comment→canon flow)
+- [ ] Post-Social web UI
+- [ ] Seed 100 Gutenberg/ArXiv nodes
+
+#### TypeScript compiles clean (`npx tsc --noEmit` passes)
+
+---
+
+## Previous Changes (Miller-Rabin/BPSW Session)
+
+- **Miller-Rabin & BPSW Engines**: Added probabilistic primality testing for large primes
+  - Miller-Rabin with deterministic witnesses up to ~10^24
+  - BPSW (Baillie-PSW) for arbitrarily large numbers
+  - Unified `primeEngine` auto-selects best method
+- **Persistent Key Storage**: Ed25519 signing keys now persist in Workers KV
+  - Keys survive cold starts and deployments
+  - Key info exposed in `/api/v1/capabilities` response
+- **Rate Limiting**: IP-based rate limiting with configurable limits
+  - 100 req/min general limit
+  - 20 req/min for computation-heavy endpoints (neighborhood, oeis, formats, flame, svg)
+  - Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
+- **Enhanced 3D Visualization**: Improved terrain surface plot
+  - Proper surface rendering with contours
+  - Binned averaging for smoother terrain
+  - Scatter overlay for actual data points
+- **Chunked Sieve**: Large calculation support via async jobs
+  - Indices > 500,000 processed in chunks
+  - State persistence with KV for multi-request processing
+  - BPSW used for finding large primes
+
+## Previous Changes
+
+- **Flame Fractal Generator**: `/api/v1/flame` generates flam3 XML genomes
+- **WebGL Flame Player**: Browser-based renderer at `/player`
+- **SVG Fractal Generator**: 6 visualization modes at `/api/v1/svg`
+- Custom domains: fractal-core.com, www.fractal-core.com, api.fractal-core.com
+- Fixed `n_type=value` to use next prime ≥ value
+- OEIS frequency statistics and starting prime headers
+
+## Completed Tasks
+
+- [x] Configure custom domains
+- [x] Add Miller-Rabin and BPSW primality engines
+- [x] Persistent key storage (Workers KV)
+- [x] Rate limiting
+- [x] Complete 3D terrain visualization
+- [x] Large calculation handoff (chunked sieve)
 
 ## Related OEIS Sequences
 

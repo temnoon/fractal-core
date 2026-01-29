@@ -27,6 +27,7 @@ import { flameRoute } from './routes/flame.js';
 import { svgRoute } from './routes/svg.js';
 import { usersRoute } from './routes/users.js';
 import { apiKeysRoute } from './routes/api-keys.js';
+import { lppRoute } from './routes/lpp.js';
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env }>();
@@ -115,6 +116,9 @@ export function createApp() {
   v1.route('/formats', formatsRoute);
   v1.route('/flame', flameRoute);
   v1.route('/svg', svgRoute);
+
+  // LPP routes (Lamish Pulse Protocol)
+  v1.route('/lpp', lppRoute);
 
   // Mount v1 routes
   app.route('/api/v1', v1);

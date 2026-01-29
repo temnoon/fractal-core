@@ -19,6 +19,12 @@ id = "6b7952e0fd9b4f93ad8335c28d590360"
 binding = "USERS_KV"
 id = "e5932603e8af47d6bbc55b8a772f3657"
 
+# KV namespace for LPP data (nodes, repeaters, epochs)
+# Create with: wrangler kv:namespace create LPP_KV
+[[kv_namespaces]]
+binding = "LPP_KV"
+id = "PLACEHOLDER_CREATE_WITH_WRANGLER"
+
 [vars]
 ENVIRONMENT = "production"
 # ADMIN_API_KEY should be set via wrangler secret put ADMIN_API_KEY
