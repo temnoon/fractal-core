@@ -23,7 +23,7 @@ id = "e5932603e8af47d6bbc55b8a772f3657"
 # Create with: wrangler kv:namespace create LPP_KV
 [[kv_namespaces]]
 binding = "LPP_KV"
-id = "PLACEHOLDER_CREATE_WITH_WRANGLER"
+id = "0aa6ebc3c6b54afb90cd150cb467a7ec"
 
 [vars]
 ENVIRONMENT = "production"
