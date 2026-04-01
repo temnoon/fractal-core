@@ -551,7 +551,14 @@ async function processStatsOnlyJob(
   let centerPrime: bigint;
   if (request.n_type === 'index') {
     const idx = parseInt(request.n, 10);
-    centerPrime = primeEngine.primeAtIndex(idx);
+    if (idx > LARGE_INDEX_THRESHOLD) {
+      // Use PNT estimate for large indices — brute-force primeAtIndex is infeasible
+      const lnN = Math.log(idx);
+      const estimate = BigInt(Math.ceil(idx * (lnN + Math.log(lnN))));
+      centerPrime = primeEngine.nextPrime(estimate).prime;
+    } else {
+      centerPrime = primeEngine.primeAtIndex(idx);
+    }
   } else {
     centerPrime = primeEngine.nextPrime(BigInt(request.n)).prime;
   }
