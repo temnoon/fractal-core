@@ -30,8 +30,9 @@ id = "0aa6ebc3c6b54afb90cd150cb467a7ec"
 binding = "JOBS_KV"
 id = "523db24c9abe4c99a6a061e2a87b57c6"
 
-[limits]
-cpu_ms = 300_000  # 5 minutes (default is 30s)
+# NOTE: [limits] cpu_ms = 300000 causes worker to hang in production
+# despite account being on Standard usage model. Investigate via dashboard.
+# For now, chunking handles the 30s default limit.
 
 [vars]
 ENVIRONMENT = "production"

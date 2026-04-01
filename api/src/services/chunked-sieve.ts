@@ -10,8 +10,8 @@
 import { bpswEngine } from './engines/index.js';
 
 // Configuration
-const CHUNK_SIZE = 500_000; // Process 500K candidates per chunk
-const CHUNK_TIMEOUT_MS = 55_000; // 55 seconds per chunk (leave margin for 5-min cpu_ms limit)
+const CHUNK_SIZE = 200_000; // Process 200K candidates per chunk
+const CHUNK_TIMEOUT_MS = 25_000; // 25 seconds per chunk (leave margin for 30s default CPU limit)
 
 export interface ChunkState {
   jobId: string;
