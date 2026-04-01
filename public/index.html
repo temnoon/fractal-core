@@ -494,6 +494,50 @@
       a.remove();
     }
 
+    function downloadStats(format) {
+      if (!window._lastNeighborhood) return;
+      const r = window._lastNeighborhood.data.result;
+      const req = window._lastNeighborhood.data.request;
+      const stats = r.stats;
+      if (!stats) return;
+
+      const prefix = document.getElementById('filePrefix').value.trim() || 'prime_terrain';
+
+      if (format === 'json') {
+        const obj = {
+          center_prime: r.center_prime,
+          n: req.n,
+          n_type: req.n_type,
+          k: req.k,
+          stats: stats,
+        };
+        const content = JSON.stringify(obj, null, 2);
+        downloadBlob(content, `${prefix}_stats.json`, 'application/json');
+      } else if (format === 'csv') {
+        let csv = '';
+        for (const [seqName, entries] of Object.entries(stats)) {
+          csv += `\n# ${seqName} statistics (center_prime=${r.center_prime}, n=${req.n}, k=${req.k})\n`;
+          csv += 'value,count,pct\n';
+          for (const e of entries) {
+            csv += `${e.value},${e.count},${e.pct}\n`;
+          }
+        }
+        downloadBlob(csv.trim(), `${prefix}_stats.csv`, 'text/csv');
+      }
+    }
+
+    function downloadBlob(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      a.remove();
+    }
+
     function updateDefaultFilenames(k) {
       const prefix = document.getElementById('filePrefix').value.trim() || 'prime_terrain';
       const base = (type) => `${prefix}_${type}`;
@@ -592,26 +636,36 @@
       // Export links
       html += '<div class="export-links">';
       html += '<b>Export:</b> ';
-      html += `<a href="${API}/neighborhood?n=${n}&n_type=${nType}&k=${k}&include=primes,gaps,d2,ratio" target="_blank">JSON</a>`;
-      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=csv" target="_blank">CSV</a>`;
-      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=pari" target="_blank">PARI</a>`;
-      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=mathematica" target="_blank">Mathematica</a>`;
-      html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=latex" target="_blank">LaTeX</a>`;
-      if (r.primes && document.getElementById('dlPrimes').checked) {
-        html += ` <a href="#" onclick="downloadSequence('primes','list')">Primes list</a>`;
-        html += ` <a href="#" onclick="downloadSequence('primes','bfile')">Primes b-file</a>`;
+
+      if (r.stats) {
+        // Stats-only export
+        html += ` <a href="#" onclick="downloadStats('json');return false">Stats JSON</a>`;
+        html += ` <a href="#" onclick="downloadStats('csv');return false">Stats CSV</a>`;
       }
-      if (r.gaps && document.getElementById('dlGaps').checked) {
-        html += ` <a href="#" onclick="downloadSequence('gaps','list')">Gaps list</a>`;
-        html += ` <a href="#" onclick="downloadSequence('gaps','bfile')">Gaps b-file</a>`;
-      }
-      if (r.d2 && document.getElementById('dlD2').checked) {
-        html += ` <a href="#" onclick="downloadSequence('d2','list')">d2 list</a>`;
-        html += ` <a href="#" onclick="downloadSequence('d2','bfile')">d2 b-file</a>`;
-      }
-      if (r.ratio && document.getElementById('dlRatios').checked) {
-        html += ` <a href="#" onclick="downloadSequence('ratio','list')">Ratios list</a>`;
-        html += ` <a href="#" onclick="downloadSequence('ratio','bfile')">Ratios b-file</a>`;
+
+      if (r.primes || r.gaps || r.d2 || r.ratio) {
+        // Full sequence export
+        html += `<a href="${API}/neighborhood?n=${n}&n_type=${nType}&k=${k}&include=primes,gaps,d2,ratio" target="_blank">JSON</a>`;
+        html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=csv" target="_blank">CSV</a>`;
+        html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=pari" target="_blank">PARI</a>`;
+        html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=mathematica" target="_blank">Mathematica</a>`;
+        html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=latex" target="_blank">LaTeX</a>`;
+        if (r.primes && document.getElementById('dlPrimes').checked) {
+          html += ` <a href="#" onclick="downloadSequence('primes','list')">Primes list</a>`;
+          html += ` <a href="#" onclick="downloadSequence('primes','bfile')">Primes b-file</a>`;
+        }
+        if (r.gaps && document.getElementById('dlGaps').checked) {
+          html += ` <a href="#" onclick="downloadSequence('gaps','list')">Gaps list</a>`;
+          html += ` <a href="#" onclick="downloadSequence('gaps','bfile')">Gaps b-file</a>`;
+        }
+        if (r.d2 && document.getElementById('dlD2').checked) {
+          html += ` <a href="#" onclick="downloadSequence('d2','list')">d2 list</a>`;
+          html += ` <a href="#" onclick="downloadSequence('d2','bfile')">d2 b-file</a>`;
+        }
+        if (r.ratio && document.getElementById('dlRatios').checked) {
+          html += ` <a href="#" onclick="downloadSequence('ratio','list')">Ratios list</a>`;
+          html += ` <a href="#" onclick="downloadSequence('ratio','bfile')">Ratios b-file</a>`;
+        }
       }
       html += '</div>';
 
