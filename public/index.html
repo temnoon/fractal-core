@@ -182,6 +182,51 @@
           </label>
         </p>
         <p>
+          <label>
+            <input type="checkbox" id="querySummaryOnly">
+            Show only statistics (hide full lists)
+          </label>
+          <label id="queryTopLabel" style="display:none;">
+            Top
+            <select id="queryTopN">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </p>
+        <p>
+          <label>Statistics:</label>
+          <label><input type="checkbox" id="statGaps" checked> Gaps</label>
+          <label><input type="checkbox" id="statD2" checked> d2</label>
+          <label><input type="checkbox" id="statRatios" checked> Ratios</label>
+        </p>
+        <p>
+          <span class="meta">Note: Full lists are hidden on the page when k &gt; 1000. Use downloads below for large results.</span>
+        </p>
+        <p>
+          <label>Filename prefix:
+            <input type="text" id="filePrefix" value="prime_terrain" size="16">
+          </label>
+        </p>
+        <p>
+          <label><input type="checkbox" id="dlPrimes"> Primes file:</label>
+          <input type="text" id="filePrimes" value="">
+        </p>
+        <p>
+          <label><input type="checkbox" id="dlGaps"> Gaps file:</label>
+          <input type="text" id="fileGaps" value="">
+        </p>
+        <p>
+          <label><input type="checkbox" id="dlD2"> d2 file:</label>
+          <input type="text" id="fileD2" value="">
+        </p>
+        <p>
+          <label><input type="checkbox" id="dlRatios"> Ratios file:</label>
+          <input type="text" id="fileRatios" value="">
+        </p>
+        <p>
           <input type="submit" value="Search">
         </p>
       </form>
@@ -207,13 +252,13 @@
       <div class="links">
         <a href="visualizations.html">Data Visualizations</a>
         <a href="simulation.html">Physics Simulation</a>
-        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/status" target="_blank">API Status</a>
-        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/capabilities" target="_blank">API Capabilities</a>
-        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/oeis" target="_blank">OEIS Endpoints</a>
-        <a href="https://prime-terrain-api.tem-527.workers.dev/api/v1/formats/info" target="_blank">Export Formats</a>
+        <a href="https://api.fractal-core.com/api/v1/status" target="_blank">API Status</a>
+        <a href="https://api.fractal-core.com/api/v1/capabilities" target="_blank">API Capabilities</a>
+        <a href="https://api.fractal-core.com/api/v1/oeis" target="_blank">OEIS Endpoints</a>
+        <a href="https://api.fractal-core.com/api/v1/formats/info" target="_blank">Export Formats</a>
       </div>
       <p>
-        API: <a href="https://prime-terrain-api.tem-527.workers.dev">prime-terrain-api.tem-527.workers.dev</a>
+        API: <a href="https://api.fractal-core.com">api.fractal-core.com</a>
       </p>
       <p>
         Related: <a href="https://oeis.org/A000040">OEIS A000040</a> (Primes),
@@ -224,44 +269,250 @@
   </div>
 
   <script>
-    const API = 'https://prime-terrain-api.tem-527.workers.dev/api/v1';
+    const API = 'https://api.fractal-core.com/api/v1';
 
     document.getElementById('searchForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const n = document.getElementById('queryN').value;
       const nType = document.getElementById('queryType').value;
       const k = document.getElementById('queryK').value;
-      const include = document.getElementById('queryInclude').value;
+      const include = computeInclude();
 
       await fetchNeighborhood(n, nType, k, include);
     });
+
+    // Workers Standard pricing: $0.02 per million CPU-ms
+    const CPU_COST_PER_MS = 0.02 / 1_000_000;
+
+    function formatCpuCost(cpuMs) {
+      if (!cpuMs || Number.isNaN(cpuMs)) return '';
+      const cost = cpuMs * CPU_COST_PER_MS;
+      if (cost < 0.000001) return `CPU: ${cpuMs}ms ($${cost.toExponential(1)})`;
+      return `CPU: ${cpuMs}ms ($${cost.toFixed(6)})`;
+    }
+
+    function computeInclude() {
+      const include = new Set(document.getElementById('queryInclude').value.split(','));
+      if (document.getElementById('statGaps').checked || document.getElementById('dlGaps').checked) include.add('gaps');
+      if (document.getElementById('statD2').checked || document.getElementById('dlD2').checked) include.add('d2');
+      if (document.getElementById('statRatios').checked || document.getElementById('dlRatios').checked) include.add('ratio');
+      if (document.getElementById('dlPrimes').checked) include.add('primes');
+      return Array.from(include).join(',');
+    }
 
     async function fetchNeighborhood(n, nType, k, include) {
       const resultsDiv = document.getElementById('results');
       resultsDiv.innerHTML = '<p>Loading...</p>';
 
+      const kNum = parseInt(k, 10);
+      if (!window._summaryTouched && Number.isFinite(kNum) && kNum > 1000) {
+        document.getElementById('querySummaryOnly').checked = true;
+        document.getElementById('queryTopLabel').style.display = 'inline';
+      }
+
+      updateDefaultFilenames(k);
+
       try {
-        const url = `${API}/neighborhood?n=${n}&n_type=${nType}&k=${k}&include=${include}`;
+        const statsOnly = document.getElementById('querySummaryOnly').checked;
+        const topN = document.getElementById('queryTopN').value;
+        const params = new URLSearchParams();
+        params.set('n', n);
+        params.set('n_type', nType);
+        params.set('k', k);
+        params.set('include', include);
+        if (statsOnly) {
+          params.set('stats_only', '1');
+          params.set('top_n', topN);
+        }
+        const url = `${API}/neighborhood?${params.toString()}`;
         const res = await fetch(url);
+        const cpuMs = parseInt(res.headers.get('x-cpu-time-ms') || '0', 10);
         const data = await res.json();
+
+        if (res.status === 202 && data.job_id) {
+          pollJob(data.job_id, n, nType, k, include);
+          return;
+        }
 
         if (data.error) {
           resultsDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
           return;
         }
 
-        resultsDiv.innerHTML = renderNeighborhood(data, n, nType, k);
+        resultsDiv.innerHTML = renderNeighborhood(data, n, nType, k, cpuMs);
       } catch (err) {
         resultsDiv.innerHTML = `<div class="error">Error: ${err.message}</div>`;
       }
     }
 
-    function renderNeighborhood(data, n, nType, k) {
+    async function pollJob(jobId, n, nType, k, include) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<p>Large request queued. Polling...</p>';
+
+      const pollUrl = `${API}/jobs/${jobId}`;
+      const resultUrl = `${API}/jobs/${jobId}/result`;
+      let resultAttempts = 0;
+
+      async function check() {
+        try {
+          const res = await fetch(pollUrl);
+          const data = await res.json();
+
+          if (data.status === 'completed') {
+            const resultRes = await fetch(resultUrl);
+            const cpuMs = parseInt(resultRes.headers.get('x-cpu-time-ms') || '0', 10);
+            const resultData = await resultRes.json();
+            if (resultData.error || !resultData.result) {
+              resultAttempts++;
+              if (resultAttempts < 5) {
+                setTimeout(check, 1000);
+                return;
+              }
+              resultsDiv.innerHTML = `<div class="error">Job result error: ${resultData.error || 'Missing result payload'}</div>`;
+              return;
+            }
+            resultsDiv.innerHTML = renderNeighborhood(resultData, n, nType, k, cpuMs);
+            return;
+          }
+
+          if (data.status === 'failed') {
+            resultsDiv.innerHTML = `<div class="error">Job failed: ${data.error || 'Unknown error'}</div>`;
+            return;
+          }
+
+          const progress = data.progress ?? 0;
+          const cpuInfo = formatCpuCost(data.cpu_time_ms || 0);
+          const chunks = data.chunks_processed ?? 0;
+          const status = data.status || 'running';
+          const note = Number(k) >= 100000 ? 'Large requests can take several minutes. Leave this tab open.' : 'Large request in progress.';
+          resultsDiv.innerHTML = `<p>${status}... ${Math.round(progress)}% (chunks: ${chunks})${cpuInfo ? ' | ' + cpuInfo : ''}<br><span class="meta">${note}</span></p>`;
+          setTimeout(check, 2000);
+        } catch (err) {
+          resultsDiv.innerHTML = `<div class="error">Poll error: ${err.message}</div>`;
+        }
+      }
+
+      check();
+    }
+
+    function topN(arr, n) {
+      const counts = {};
+      for (const v of arr) {
+        counts[v] = (counts[v] || 0) + 1;
+      }
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, n)
+        .map(([val, cnt]) => ({ value: val, count: cnt, pct: ((cnt / arr.length) * 100).toFixed(1) }));
+    }
+
+    function renderTopTable(label, items, topNCount) {
+      if (!items || items.length === 0) return '';
+      const top = topN(items, topNCount);
+      let html = `<div class="sequence-line"><span class="sequence-label">${label} (top ${topNCount}):</span></div>`;
+      html += '<table class="data"><tr><th>Value</th><th>Count</th><th>%</th></tr>';
+      for (const t of top) {
+        html += `<tr><td>${t.value}</td><td>${t.count}</td><td>${t.pct}</td></tr>`;
+      }
+      html += '</table>';
+      return html;
+    }
+
+    function renderStatsTable(label, stats) {
+      if (!stats || stats.length === 0) return '';
+      let html = `<div class="sequence-line"><span class="sequence-label">${label}:</span></div>`;
+      html += '<table class="data"><tr><th>Value</th><th>Count</th><th>%</th></tr>';
+      for (const t of stats) {
+        html += `<tr><td>${t.value}</td><td>${t.count}</td><td>${t.pct}</td></tr>`;
+      }
+      html += '</table>';
+      return html;
+    }
+
+    function formatListValues(seq, type) {
+      if (!seq) return '';
+      if (type === 'ratio') return seq.map(r => r.num + '/' + r.den);
+      return seq;
+    }
+
+    function buildListContent(values) {
+      return values.join(', ');
+    }
+
+    function buildBFileContent(values, offset = 1) {
+      return values.map((v, i) => `${i + offset} ${v}`).join('\n');
+    }
+
+    function downloadSequence(seqKey, format) {
+      if (!window._lastNeighborhood) return;
+      const r = window._lastNeighborhood.data.result;
+      const values = formatListValues(r[seqKey], seqKey === 'ratio' ? 'ratio' : 'plain');
+      if (!values || values.length === 0) return;
+
+      const prefix = document.getElementById('filePrefix').value.trim() || 'prime_terrain';
+      const override = document.getElementById(
+        seqKey === 'primes' ? 'filePrimes' :
+        seqKey === 'gaps' ? 'fileGaps' :
+        seqKey === 'd2' ? 'fileD2' : 'fileRatios'
+      ).value.trim();
+
+      const defaultBase = `${prefix}_${seqKey}`;
+      const baseName = override || defaultBase;
+      const filename = format === 'bfile' ? `${baseName}.b` : `${baseName}.list`;
+
+      const content = format === 'bfile'
+        ? buildBFileContent(values)
+        : buildListContent(values);
+
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      a.remove();
+    }
+
+    function updateDefaultFilenames(k) {
+      const prefix = document.getElementById('filePrefix').value.trim() || 'prime_terrain';
+      const base = (type) => `${prefix}_${type}`;
+
+      if (document.getElementById('dlPrimes').checked && !document.getElementById('filePrimes').value.trim()) {
+        document.getElementById('filePrimes').value = base('primes');
+      }
+      if (document.getElementById('dlGaps').checked && !document.getElementById('fileGaps').value.trim()) {
+        document.getElementById('fileGaps').value = base('gaps');
+      }
+      if (document.getElementById('dlD2').checked && !document.getElementById('fileD2').value.trim()) {
+        document.getElementById('fileD2').value = base('d2');
+      }
+      if (document.getElementById('dlRatios').checked && !document.getElementById('fileRatios').value.trim()) {
+        document.getElementById('fileRatios').value = base('ratios');
+      }
+    }
+
+    function renderNeighborhood(data, n, nType, k, cpuMs) {
       const r = data.result;
+      if (!r) {
+        return '<div class="error">Error: Missing result payload.</div>';
+      }
+      window._lastNeighborhood = { data, n, nType, k, cpuMs };
+      const showSummaryOnly = document.getElementById('querySummaryOnly').checked;
+      const topCount = parseInt(document.getElementById('queryTopN').value, 10);
+      const showListPrimes = true;
+      const showListGaps = true;
+      const showListD2 = true;
+      const showListRatios = true;
+      const showStatGaps = document.getElementById('statGaps').checked;
+      const showStatD2 = document.getElementById('statD2').checked;
+      const showStatRatios = document.getElementById('statRatios').checked;
+      const kNum = parseInt(k, 10);
       let html = '<div class="result">';
       html += `<h2>Neighborhood around ${nType === 'index' ? 'p(' + n + ')' : n} = ${r.center_prime}</h2>`;
 
-      if (r.primes) {
+      if (r.primes && showListPrimes && !showSummaryOnly && (Number.isNaN(kNum) || kNum <= 1000)) {
         html += '<div class="sequence-line">';
         html += '<span class="sequence-label">Primes:</span> ';
         html += '<span class="sequence-data">' + r.primes.join(', ') + '</span>';
@@ -269,7 +520,7 @@
         html += '<div class="related">Related: <a href="https://oeis.org/A000040" target="_blank">OEIS A000040</a></div>';
       }
 
-      if (r.gaps) {
+      if (r.gaps && showListGaps && !showSummaryOnly && (Number.isNaN(kNum) || kNum <= 1000)) {
         html += '<div class="sequence-line">';
         html += '<span class="sequence-label">Gaps g(n) = p(n+1) - p(n):</span> ';
         html += '<span class="sequence-data">' + r.gaps.join(', ') + '</span>';
@@ -277,7 +528,15 @@
         html += '<div class="related">Related: <a href="https://oeis.org/A001223" target="_blank">OEIS A001223</a></div>';
       }
 
-      if (r.d2) {
+      if (showStatGaps) {
+        if (r.stats && r.stats.gaps) {
+          html += renderStatsTable('Gaps g(n) = p(n+1) - p(n)', r.stats.gaps);
+        } else if (r.gaps) {
+          html += renderTopTable('Gaps g(n) = p(n+1) - p(n)', r.gaps, topCount);
+        }
+      }
+
+      if (r.d2 && showListD2 && !showSummaryOnly && (Number.isNaN(kNum) || kNum <= 1000)) {
         html += '<div class="sequence-line">';
         html += '<span class="sequence-label">Second differences d2(n) = g(n+1) - g(n):</span> ';
         html += '<span class="sequence-data">' + r.d2.join(', ') + '</span>';
@@ -285,13 +544,30 @@
         html += '<div class="related">Related: <a href="https://oeis.org/A036263" target="_blank">OEIS A036263</a></div>';
       }
 
-      if (r.ratio) {
+      if (showStatD2) {
+        if (r.stats && r.stats.d2) {
+          html += renderStatsTable('Second differences d2(n) = g(n+1) - g(n)', r.stats.d2);
+        } else if (r.d2) {
+          html += renderTopTable('Second differences d2(n) = g(n+1) - g(n)', r.d2, topCount);
+        }
+      }
+
+      if (r.ratio && showListRatios && !showSummaryOnly && (Number.isNaN(kNum) || kNum <= 1000)) {
+        const ratioStrs = r.ratio.map(rat => rat.num + '/' + rat.den);
         html += '<div class="sequence-line">';
         html += '<span class="sequence-label">Ratios r(n) = d2(n) / (p(n+2) - p(n)):</span> ';
-        const ratioStrs = r.ratio.map(rat => rat.num + '/' + rat.den);
         html += '<span class="sequence-data">' + ratioStrs.join(', ') + '</span>';
         html += '</div>';
         html += '<div class="related">Note: r(n) is always in [-1, 1]</div>';
+      }
+
+      if (showStatRatios) {
+        if (r.stats && r.stats.ratio) {
+          html += renderStatsTable('Ratios r(n) = d2(n) / (p(n+2) - p(n))', r.stats.ratio);
+        } else if (r.ratio) {
+          const ratioStrs = r.ratio.map(rat => rat.num + '/' + rat.den);
+          html += renderTopTable('Ratios r(n) = d2(n) / (p(n+2) - p(n))', ratioStrs, topCount);
+        }
       }
 
       // Export links
@@ -302,10 +578,28 @@
       html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=pari" target="_blank">PARI</a>`;
       html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=mathematica" target="_blank">Mathematica</a>`;
       html += `<a href="${API}/formats?n=${n}&count=${parseInt(k)*2+1}&sequence=all&format=latex" target="_blank">LaTeX</a>`;
+      if (r.primes && document.getElementById('dlPrimes').checked) {
+        html += ` <a href="#" onclick="downloadSequence('primes','list')">Primes list</a>`;
+        html += ` <a href="#" onclick="downloadSequence('primes','bfile')">Primes b-file</a>`;
+      }
+      if (r.gaps && document.getElementById('dlGaps').checked) {
+        html += ` <a href="#" onclick="downloadSequence('gaps','list')">Gaps list</a>`;
+        html += ` <a href="#" onclick="downloadSequence('gaps','bfile')">Gaps b-file</a>`;
+      }
+      if (r.d2 && document.getElementById('dlD2').checked) {
+        html += ` <a href="#" onclick="downloadSequence('d2','list')">d2 list</a>`;
+        html += ` <a href="#" onclick="downloadSequence('d2','bfile')">d2 b-file</a>`;
+      }
+      if (r.ratio && document.getElementById('dlRatios').checked) {
+        html += ` <a href="#" onclick="downloadSequence('ratio','list')">Ratios list</a>`;
+        html += ` <a href="#" onclick="downloadSequence('ratio','bfile')">Ratios b-file</a>`;
+      }
       html += '</div>';
 
       html += '<div class="meta">';
       html += `Mode: ${r.mode}, Engine: ${data.request.engine}`;
+      const cpuInfo = formatCpuCost(cpuMs);
+      if (cpuInfo) html += ` | ${cpuInfo}`;
       html += '</div>';
 
       html += '</div>';
@@ -374,6 +668,70 @@
         resultsDiv.innerHTML = `<div class="error">Error: ${err.message}</div>`;
       }
     }
+
+    document.getElementById('querySummaryOnly').addEventListener('change', function() {
+      window._summaryTouched = true;
+      document.getElementById('queryTopLabel').style.display = this.checked ? 'inline' : 'none';
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('queryTopN').addEventListener('change', function() {
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('dlPrimes').addEventListener('change', function() {
+      updateDefaultFilenames(document.getElementById('queryK').value);
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('dlGaps').addEventListener('change', function() {
+      updateDefaultFilenames(document.getElementById('queryK').value);
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('dlD2').addEventListener('change', function() {
+      updateDefaultFilenames(document.getElementById('queryK').value);
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('dlRatios').addEventListener('change', function() {
+      updateDefaultFilenames(document.getElementById('queryK').value);
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('statGaps').addEventListener('change', function() {
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('statD2').addEventListener('change', function() {
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('statRatios').addEventListener('change', function() {
+      if (window._lastNeighborhood) {
+        const { data, n, nType, k } = window._lastNeighborhood;
+        document.getElementById('results').innerHTML = renderNeighborhood(data, n, nType, k);
+      }
+    });
+    document.getElementById('filePrefix').addEventListener('input', function() {
+      updateDefaultFilenames(document.getElementById('queryK').value);
+    });
 
     // Load default on page load
     fetchNeighborhood('100', 'index', '10', 'primes,gaps,d2,ratio');
