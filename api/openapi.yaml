@@ -1,0 +1,1772 @@
+openapi: 3.0.3
+info:
+  title: Prime Terrain API
+  description: |
+    API for exploring prime neighborhoods with cryptographic signing,
+    usage tracking, and multiple export formats.
+
+    ## Mathematical Model
+    - **Gap**: g(n) = p(n+1) − p(n)
+    - **Second difference**: Δ² = g(n) − g(n−1)
+    - **Second ratio**: r = Δ² / (p(n+1) − p(n−1)), always in [-1, 1]
+
+    ## Authentication
+    API keys are passed via headers:
+    - `Authorization: Bearer frc_...` (preferred)
+    - `X-API-Key: frc_...`
+
+    Unauthenticated requests use free tier limits.
+
+    ## Rate Limits
+    | Tier | CPU/Month | Req/Min | Expensive/Min | Async Jobs |
+    |------|-----------|---------|---------------|------------|
+    | free | 5 min | 100 | 20 | 5 |
+    | pro | unlimited | 500 | 100 | 50 |
+    | enterprise | custom | 2000 | 500 | 500 |
+  version: 1.0.0
+  contact:
+    name: Fractal Core
+    url: https://fractal-core.com
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.fractal-core.com/api/v1
+    description: Production
+  - url: https://prime-terrain-api.tem-527.workers.dev/api/v1
+    description: Workers Dev
+
+tags:
+  - name: Status
+    description: Health and capabilities
+  - name: Neighborhood
+    description: Prime neighborhood computations
+  - name: Verification
+    description: Signature and hash verification
+  - name: Jobs
+    description: Async job management
+  - name: OEIS
+    description: OEIS-compatible sequence export
+  - name: Formats
+    description: Multi-format export
+  - name: Visualization
+    description: Fractal art generation
+  - name: Users
+    description: User management
+  - name: API Keys
+    description: API key management
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key in format frc_<32 alphanumeric chars>
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Alternative API key header
+
+  schemas:
+    # Enums
+    NType:
+      type: string
+      enum: [index, value]
+      default: index
+      description: How to interpret anchor value
+
+    Mode:
+      type: string
+      enum: [count, span]
+      default: count
+      description: Size determination method
+
+    Engine:
+      type: string
+      enum: [auto, sieve, mr64, bpsw, mr-prob, precomputed]
+      default: auto
+
+    ValidationMode:
+      type: string
+      enum: [none, dual, triple]
+      default: none
+
+    ProofLevel:
+      type: string
+      enum: [none, receipt, signed]
+      default: none
+
+    OutputFormat:
+      type: string
+      enum: [json, bin]
+      default: json
+
+    Compression:
+      type: string
+      enum: [none, gzip, zstd]
+      default: none
+
+    IncludeField:
+      type: string
+      enum: [primes, gaps, d2, ratio, indices]
+
+    UserTier:
+      type: string
+      enum: [free, pro, enterprise]
+
+    JobStatus:
+      type: string
+      enum: [pending, running, completed, failed]
+
+    ApiKeyStatus:
+      type: string
+      enum: [active, revoked, expired]
+
+    # Core Types
+    Rational:
+      type: object
+      required: [num, den]
+      properties:
+        num:
+          type: string
+          description: Numerator as bigint string
+        den:
+          type: string
+          description: Denominator as bigint string
+      example:
+        num: "-2"
+        den: "12"
+
+    CanonicalRequest:
+      type: object
+      required: [n, n_type, mode, include, engine, validate, proof, format, compress]
+      properties:
+        n:
+          type: string
+          description: Anchor value as bigint string
+        n_type:
+          $ref: '#/components/schemas/NType'
+        mode:
+          $ref: '#/components/schemas/Mode'
+        k:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        w:
+          type: string
+          description: Half-width as bigint string (span mode)
+        include:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncludeField'
+        engine:
+          $ref: '#/components/schemas/Engine'
+        validate:
+          $ref: '#/components/schemas/ValidationMode'
+        proof:
+          $ref: '#/components/schemas/ProofLevel'
+        format:
+          $ref: '#/components/schemas/OutputFormat'
+        compress:
+          $ref: '#/components/schemas/Compression'
+
+    NeighborhoodResult:
+      type: object
+      required: [n, n_type, mode]
+      properties:
+        n:
+          type: string
+        n_type:
+          $ref: '#/components/schemas/NType'
+        mode:
+          $ref: '#/components/schemas/Mode'
+        center_prime:
+          type: string
+          description: Center prime as bigint string
+        primes:
+          type: array
+          items:
+            type: string
+          description: Prime values as bigint strings
+        gaps:
+          type: array
+          items:
+            type: string
+          description: Gap values as unsigned bigint strings
+        d2:
+          type: array
+          items:
+            type: string
+          description: Second differences as signed bigint strings
+        ratio:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rational'
+        indices:
+          type: array
+          items:
+            type: integer
+
+    Receipt:
+      type: object
+      required: [request_hash, result_hash, engines, validation, deterministic, generated_at]
+      properties:
+        request_hash:
+          type: string
+          description: SHA-256 hex of canonical request
+        result_hash:
+          type: string
+          description: SHA-256 hex of canonical result
+        engines:
+          type: array
+          items:
+            type: string
+        validation:
+          type: object
+          required: [mode, agreement]
+          properties:
+            mode:
+              type: string
+            agreement:
+              type: boolean
+        deterministic:
+          type: boolean
+        generated_at:
+          type: string
+          format: date-time
+
+    SignatureBlock:
+      type: object
+      required: [alg, key_id, signed_hash_alg, sig_b64]
+      properties:
+        alg:
+          type: string
+          enum: [ed25519]
+        key_id:
+          type: string
+        signed_hash_alg:
+          type: string
+          enum: [sha256]
+        sig_b64:
+          type: string
+          description: Base64-encoded Ed25519 signature
+
+    SignedResponse:
+      type: object
+      required: [request, result]
+      properties:
+        request:
+          $ref: '#/components/schemas/CanonicalRequest'
+        result:
+          $ref: '#/components/schemas/NeighborhoodResult'
+        receipt:
+          $ref: '#/components/schemas/Receipt'
+        signature:
+          $ref: '#/components/schemas/SignatureBlock'
+
+    # User Types
+    TierLimits:
+      type: object
+      properties:
+        cpuTimePerMonth:
+          type: integer
+          description: Milliseconds, -1 for unlimited
+        requestsPerMinute:
+          type: integer
+        expensivePerMinute:
+          type: integer
+        asyncJobs:
+          type: integer
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        tier:
+          $ref: '#/components/schemas/UserTier'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ApiKeyInfo:
+      type: object
+      properties:
+        prefix:
+          type: string
+          description: First 8 chars (e.g., frc_a7B3)
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ApiKeyStatus'
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+
+    UsageSummary:
+      type: object
+      properties:
+        period:
+          type: string
+          description: YYYY-MM format
+        cpu_time_used:
+          type: string
+          description: Human-readable (e.g., "2m 30s")
+        cpu_time_remaining:
+          type: string
+        request_count:
+          type: integer
+        expensive_request_count:
+          type: integer
+        limit_exceeded:
+          type: boolean
+
+    # Job Types
+    Job:
+      type: object
+      properties:
+        job_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        result_url:
+          type: string
+        error:
+          type: string
+
+    # Error
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  parameters:
+    N:
+      name: n
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Anchor value as bigint string
+
+    NType:
+      name: n_type
+      in: query
+      schema:
+        $ref: '#/components/schemas/NType'
+
+    Mode:
+      name: mode
+      in: query
+      schema:
+        $ref: '#/components/schemas/Mode'
+
+    K:
+      name: k
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10000
+        default: 10
+      description: Number of primes each side (count mode)
+
+    W:
+      name: w
+      in: query
+      schema:
+        type: string
+      description: Half-width as bigint string (span mode)
+
+    Include:
+      name: include
+      in: query
+      schema:
+        type: string
+      description: Comma-separated fields (primes,gaps,d2,ratio,indices)
+
+    Engine:
+      name: engine
+      in: query
+      schema:
+        $ref: '#/components/schemas/Engine'
+
+    Validate:
+      name: validate
+      in: query
+      schema:
+        $ref: '#/components/schemas/ValidationMode'
+
+    Proof:
+      name: proof
+      in: query
+      schema:
+        $ref: '#/components/schemas/ProofLevel'
+
+    Format:
+      name: format
+      in: query
+      schema:
+        $ref: '#/components/schemas/OutputFormat'
+
+    Compress:
+      name: compress
+      in: query
+      schema:
+        $ref: '#/components/schemas/Compression'
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Unauthorized
+            message: API key required
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Forbidden
+            message: Admin access required
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until retry
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Rate limit exceeded
+            message: Too many requests, please try again later.
+            retry_after: 45
+
+paths:
+  # Status
+  /status:
+    get:
+      tags: [Status]
+      summary: Service health check
+      operationId: getStatus
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded, error]
+                  version:
+                    type: string
+                  uptime_seconds:
+                    type: number
+
+  /capabilities:
+    get:
+      tags: [Status]
+      summary: Service capabilities and limits
+      operationId: getCapabilities
+      security:
+        - {}
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Service capabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                  engines:
+                    type: array
+                    items:
+                      type: string
+                  signing_keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key_id:
+                          type: string
+                        alg:
+                          type: string
+                        public_key_b64:
+                          type: string
+                  limits:
+                    type: object
+                    properties:
+                      max_k:
+                        type: integer
+                      max_w:
+                        type: string
+                      max_async_jobs:
+                        type: integer
+                      sieve_limit:
+                        type: integer
+                  rate_limits:
+                    type: object
+                    properties:
+                      requests_per_minute:
+                        type: integer
+                      expensive_per_minute:
+                        type: integer
+                  formats:
+                    type: array
+                    items:
+                      type: string
+                  compression:
+                    type: array
+                    items:
+                      type: string
+                  authenticated:
+                    type: boolean
+                  tier:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      tier:
+                        type: string
+                  tier_limits:
+                    type: object
+                  available_tiers:
+                    type: object
+
+  # Neighborhood
+  /neighborhood:
+    get:
+      tags: [Neighborhood]
+      summary: Full prime neighborhood
+      description: |
+        Computes prime neighborhood around anchor with all derived sequences.
+        Supports cryptographic signing and multiple output formats.
+      operationId: getNeighborhood
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - $ref: '#/components/parameters/Mode'
+        - $ref: '#/components/parameters/K'
+        - $ref: '#/components/parameters/W'
+        - $ref: '#/components/parameters/Include'
+        - $ref: '#/components/parameters/Engine'
+        - $ref: '#/components/parameters/Validate'
+        - $ref: '#/components/parameters/Proof'
+        - $ref: '#/components/parameters/Format'
+        - $ref: '#/components/parameters/Compress'
+      responses:
+        '200':
+          description: Neighborhood data
+          headers:
+            X-CPU-Time-Ms:
+              schema:
+                type: integer
+            X-CPU-Time-Remaining-Ms:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedResponse'
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /gaps:
+    get:
+      tags: [Neighborhood]
+      summary: Prime gaps only
+      description: Returns g(n) = p(n+1) - p(n)
+      operationId: getGaps
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - $ref: '#/components/parameters/K'
+        - $ref: '#/components/parameters/Proof'
+      responses:
+        '200':
+          description: Gap data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /second-differences:
+    get:
+      tags: [Neighborhood]
+      summary: Second differences only
+      description: Returns Δ² = g(n) - g(n-1)
+      operationId: getSecondDifferences
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - $ref: '#/components/parameters/K'
+        - $ref: '#/components/parameters/Proof'
+      responses:
+        '200':
+          description: Second difference data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /second-ratios:
+    get:
+      tags: [Neighborhood]
+      summary: Normalized ratios only
+      description: Returns r = Δ² / (p(n+1) - p(n-1)), always in [-1, 1]
+      operationId: getSecondRatios
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - $ref: '#/components/parameters/K'
+        - $ref: '#/components/parameters/Proof'
+      responses:
+        '200':
+          description: Ratio data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /fingerprint:
+    get:
+      tags: [Verification]
+      summary: Request/result hashes without payload
+      operationId: getFingerprint
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - $ref: '#/components/parameters/K'
+      responses:
+        '200':
+          description: Fingerprint hashes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_hash:
+                    type: string
+                  result_hash:
+                    type: string
+                  engines:
+                    type: array
+                    items:
+                      type: string
+                  generated_at:
+                    type: string
+                    format: date-time
+
+  /verify:
+    post:
+      tags: [Verification]
+      summary: Verify signature and hashes
+      operationId: verifyResponse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request, result]
+              properties:
+                request:
+                  $ref: '#/components/schemas/CanonicalRequest'
+                result:
+                  $ref: '#/components/schemas/NeighborhoodResult'
+                receipt:
+                  $ref: '#/components/schemas/Receipt'
+                signature:
+                  $ref: '#/components/schemas/SignatureBlock'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  checks:
+                    type: object
+                    properties:
+                      request_hash:
+                        type: object
+                        properties:
+                          expected:
+                            type: string
+                          actual:
+                            type: string
+                          match:
+                            type: boolean
+                      result_hash:
+                        type: object
+                        properties:
+                          expected:
+                            type: string
+                          actual:
+                            type: string
+                          match:
+                            type: boolean
+                      signature:
+                        type: object
+                        properties:
+                          valid:
+                            type: boolean
+                          key_id:
+                            type: string
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  # Jobs
+  /jobs:
+    get:
+      tags: [Jobs]
+      summary: List all jobs
+      operationId: listJobs
+      responses:
+        '200':
+          description: Job list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Job'
+
+    post:
+      tags: [Jobs]
+      summary: Create async job
+      description: Creates job for large computations that exceed sync limits
+      operationId: createJob
+      security:
+        - {}
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [n]
+              properties:
+                n:
+                  type: string
+                n_type:
+                  $ref: '#/components/schemas/NType'
+                mode:
+                  $ref: '#/components/schemas/Mode'
+                k:
+                  type: integer
+                w:
+                  type: string
+                include:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/IncludeField'
+                engine:
+                  $ref: '#/components/schemas/Engine'
+                validate:
+                  $ref: '#/components/schemas/ValidationMode'
+                proof:
+                  $ref: '#/components/schemas/ProofLevel'
+      responses:
+        '202':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    $ref: '#/components/schemas/JobStatus'
+                  poll_url:
+                    type: string
+        '429':
+          description: Async job limit exceeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  message:
+                    type: string
+                  active_jobs:
+                    type: integer
+                  limit:
+                    type: integer
+
+  /jobs/{job_id}:
+    get:
+      tags: [Jobs]
+      summary: Get job status
+      operationId: getJob
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          description: Job not found
+
+    delete:
+      tags: [Jobs]
+      summary: Delete job
+      operationId: deleteJob
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        '404':
+          description: Job not found
+
+  /jobs/{job_id}/result:
+    get:
+      tags: [Jobs]
+      summary: Get job result
+      operationId: getJobResult
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedResponse'
+        '400':
+          description: Job not completed
+        '404':
+          description: Job not found
+
+  # OEIS
+  /oeis:
+    get:
+      tags: [OEIS]
+      summary: List OEIS endpoints
+      operationId: listOeisEndpoints
+      responses:
+        '200':
+          description: Available OEIS sequences
+
+  /oeis/primes:
+    get:
+      tags: [OEIS]
+      summary: Prime sequence (A000040)
+      operationId: getOeisPrimes
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: count
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 10000
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, bfile, internal, list]
+            default: json
+      responses:
+        '200':
+          description: Prime sequence
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /oeis/gaps:
+    get:
+      tags: [OEIS]
+      summary: Prime gaps (A001223)
+      operationId: getOeisGaps
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: count
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 10000
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, bfile, internal, list]
+            default: json
+      responses:
+        '200':
+          description: Gap sequence with frequency statistics
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /oeis/d2:
+    get:
+      tags: [OEIS]
+      summary: Second differences (A036263)
+      operationId: getOeisD2
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: count
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 10000
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, bfile, internal, list]
+            default: json
+      responses:
+        '200':
+          description: Second difference sequence
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /oeis/ratios:
+    get:
+      tags: [OEIS]
+      summary: Second ratios
+      operationId: getOeisRatios
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: count
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 10000
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, bfile, internal, list]
+            default: json
+      responses:
+        '200':
+          description: Ratio sequence
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /oeis/neighborhood:
+    get:
+      tags: [OEIS]
+      summary: Full neighborhood in OEIS format
+      operationId: getOeisNeighborhood
+      parameters:
+        - name: n
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: k
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, bfile, internal, list]
+            default: json
+      responses:
+        '200':
+          description: Neighborhood in OEIS format
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  # Formats
+  /formats:
+    get:
+      tags: [Formats]
+      summary: Export sequence in various formats
+      operationId: exportFormats
+      parameters:
+        - name: n
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Starting index
+        - name: count
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 10000
+        - name: sequence
+          in: query
+          schema:
+            type: string
+            enum: [primes, gaps, d2, ratios, all]
+            default: primes
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, tsv, pari, mathematica, sage, maple, latex, latex-table, latex-array, numpy, r, julia, json-ld]
+        - name: delimiter
+          in: query
+          schema:
+            type: string
+            enum: [",", ";", "\t"]
+          description: CSV delimiter
+        - name: header
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Include CSV header
+        - name: columns
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: LaTeX columns
+        - name: varname
+          in: query
+          schema:
+            type: string
+            default: seq
+          description: Variable name for CAS
+      responses:
+        '200':
+          description: Formatted output
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /formats/info:
+    get:
+      tags: [Formats]
+      summary: List available formats
+      operationId: getFormatsInfo
+      responses:
+        '200':
+          description: Format descriptions
+
+  # Visualization
+  /flame:
+    get:
+      tags: [Visualization]
+      summary: Generate Flam3 XML genome
+      operationId: generateFlame
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - name: k
+          in: query
+          schema:
+            type: integer
+            minimum: 5
+            maximum: 100
+            default: 20
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: width
+          in: query
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 8192
+            default: 1920
+        - name: height
+          in: query
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 8192
+            default: 1080
+        - name: quality
+          in: query
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 10000
+            default: 500
+        - name: supersample
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4
+            default: 2
+        - name: variations
+          in: query
+          schema:
+            type: string
+            enum: [classic, modern, all, minimal]
+            default: classic
+        - name: symmetry
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 12
+            default: 0
+        - name: color_mode
+          in: query
+          schema:
+            type: string
+            enum: [sequence, gradient, monochrome]
+            default: sequence
+        - name: animate
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: frames
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 30
+      responses:
+        '200':
+          description: Flam3 XML genome
+          headers:
+            X-Prime-Index:
+              schema:
+                type: string
+            X-Center-Prime:
+              schema:
+                type: string
+            X-D2-Count:
+              schema:
+                type: integer
+            X-Ratio-Count:
+              schema:
+                type: integer
+          content:
+            application/xml:
+              schema:
+                type: string
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /flame/info:
+    get:
+      tags: [Visualization]
+      summary: Flame generator info
+      operationId: getFlameInfo
+      responses:
+        '200':
+          description: Generator parameters
+
+  /flame/preview:
+    get:
+      tags: [Visualization]
+      summary: Preview flame data
+      operationId: previewFlame
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - $ref: '#/components/parameters/K'
+      responses:
+        '200':
+          description: Preview metadata
+
+  /svg:
+    get:
+      tags: [Visualization]
+      summary: Generate SVG fractal art
+      operationId: generateSvg
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - name: k
+          in: query
+          schema:
+            type: integer
+            minimum: 5
+            maximum: 100
+            default: 20
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [tree, spiral, mandala, walk, burst, wave]
+            default: mandala
+        - name: width
+          in: query
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 4096
+            default: 800
+        - name: height
+          in: query
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 4096
+            default: 800
+        - name: color
+          in: query
+          schema:
+            type: string
+            enum: [prime, fire, ice, mono, rainbow]
+            default: prime
+        - name: stroke
+          in: query
+          schema:
+            type: number
+            minimum: 0.5
+            maximum: 10
+            default: 1.5
+        - name: background
+          in: query
+          schema:
+            type: string
+            default: '#0a0e14'
+      responses:
+        '200':
+          description: SVG image
+          headers:
+            X-Prime-Index:
+              schema:
+                type: string
+            X-Center-Prime:
+              schema:
+                type: string
+            X-Mode:
+              schema:
+                type: string
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /svg/info:
+    get:
+      tags: [Visualization]
+      summary: SVG generator info
+      operationId: getSvgInfo
+      responses:
+        '200':
+          description: Generator modes
+
+  /svg/gallery:
+    get:
+      tags: [Visualization]
+      summary: Gallery of all modes
+      operationId: getSvgGallery
+      parameters:
+        - $ref: '#/components/parameters/N'
+        - $ref: '#/components/parameters/NType'
+        - $ref: '#/components/parameters/K'
+      responses:
+        '200':
+          description: Gallery URLs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    mode:
+                      type: string
+                    url:
+                      type: string
+
+  # Users
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Current user info
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User info with usage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  limits:
+                    $ref: '#/components/schemas/TierLimits'
+                  usage:
+                    $ref: '#/components/schemas/UsageSummary'
+                  api_keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKeyInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/usage:
+    get:
+      tags: [Users]
+      summary: Usage history
+      operationId: getUserUsage
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: months
+          in: query
+          schema:
+            type: integer
+            default: 3
+            maximum: 12
+      responses:
+        '200':
+          description: Usage history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  tier:
+                    type: string
+                  limits:
+                    $ref: '#/components/schemas/TierLimits'
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        period:
+                          type: string
+                        cpu_time_ms:
+                          type: integer
+                        request_count:
+                          type: integer
+                        expensive_request_count:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users:
+    post:
+      tags: [Users]
+      summary: Create user (admin only)
+      operationId: createUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                tier:
+                  $ref: '#/components/schemas/UserTier'
+                metadata:
+                  type: object
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: User already exists
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user (admin only)
+      operationId: getUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User info
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+
+    patch:
+      tags: [Users]
+      summary: Update user (admin only)
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tier:
+                  $ref: '#/components/schemas/UserTier'
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: User updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+
+    delete:
+      tags: [Users]
+      summary: Delete user (admin only)
+      operationId: deleteUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+
+  /users/by-email/{email}:
+    get:
+      tags: [Users]
+      summary: Get user by email (admin only)
+      operationId: getUserByEmail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: User info
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+
+  # API Keys
+  /api-keys:
+    get:
+      tags: [API Keys]
+      summary: List user's API keys
+      operationId: listApiKeys
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: API key list (metadata only)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKeyInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [API Keys]
+      summary: Create API key
+      description: Returns full key once - cannot be retrieved later
+      operationId: createApiKey
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                expires_in_days:
+                  type: integer
+                  minimum: 1
+                  maximum: 365
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  key:
+                    type: string
+                    description: Full key (shown once!)
+                  prefix:
+                    type: string
+                  name:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+                  warning:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api-keys/{prefix}:
+    delete:
+      tags: [API Keys]
+      summary: Revoke API key
+      operationId: revokeApiKey
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: prefix
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^frc_[a-zA-Z0-9]{4}$'
+          description: Key prefix (e.g., frc_a7B3)
+      responses:
+        '200':
+          description: Key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  prefix:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Key not found
+
+  /api-keys/admin/{user_id}:
+    get:
+      tags: [API Keys]
+      summary: List user's keys (admin)
+      operationId: listUserApiKeys
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User's API keys
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+
+    post:
+      tags: [API Keys]
+      summary: Create key for user (admin)
+      operationId: createUserApiKey
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                expires_in_days:
+                  type: integer
+      responses:
+        '201':
+          description: Key created
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found

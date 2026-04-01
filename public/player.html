@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Terrain - Flame Player</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-card: #0f1419;
+      --border: #1e2633;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #ff6b35;
+      --accent2: #f7c94b;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 320px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: #ff8555;
+    }
+
+    .btn:disabled {
+      background: var(--muted);
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-group .btn {
+      flex: 1;
+    }
+
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider-group input[type="range"] {
+      flex: 1;
+      padding: 0;
+    }
+
+    .slider-value {
+      min-width: 50px;
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent2);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .stat {
+      background: var(--bg);
+      border-radius: 4px;
+      padding: 8px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+    }
+
+    .stat-value {
+      color: var(--accent2);
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .canvas-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      position: relative;
+    }
+
+    #flameCanvas {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--text);
+    }
+
+    .loading-overlay.hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .progress-bar {
+      width: 200px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    .error-message {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.4);
+      color: #f85149;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .error-message.active {
+      display: block;
+    }
+
+    .warn-message {
+      background: rgba(247, 201, 75, 0.1);
+      border: 1px solid rgba(247, 201, 75, 0.45);
+      color: #f7c94b;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .warn-message.active {
+      display: block;
+    }
+
+    .nav-links {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+    }
+
+    .info-text {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>&#x1F525; Flame Player</h1>
+      </div>
+
+      <div class="sidebar-content">
+        <div class="error-message" id="errorMessage"></div>
+        <div class="warn-message" id="warnMessage"></div>
+
+        <div class="section">
+          <div class="section-title">Load Flame</div>
+
+          <div class="form-group">
+            <label>Prime Index</label>
+            <div class="btn-group">
+              <input type="text" id="primeIndex" value="1000" style="flex: 2;">
+              <button class="btn" onclick="loadFromAPI()" style="flex: 1;">Load</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Or paste XML genome</label>
+            <textarea id="xmlInput" placeholder="<flames>...</flames>"></textarea>
+          </div>
+
+          <button class="btn btn-secondary" onclick="loadFromXML()">Parse XML</button>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Render Settings</div>
+
+          <div class="form-group">
+            <label>Quality (iterations per frame)</label>
+            <div class="slider-group">
+              <input type="range" id="quality" min="1000" max="100000" value="20000" step="1000">
+              <span class="slider-value" id="qualityValue">20000</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Brightness</label>
+            <div class="slider-group">
+              <input type="range" id="brightness" min="0.5" max="8" value="4" step="0.1">
+              <span class="slider-value" id="brightnessValue">4.0</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Gamma</label>
+            <div class="slider-group">
+              <input type="range" id="gamma" min="1" max="6" value="4" step="0.1">
+              <span class="slider-value" id="gammaValue">4.0</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Resolution</label>
+            <select id="resolution">
+              <option value="512">512 x 512</option>
+              <option value="768">768 x 768</option>
+              <option value="1024" selected>1024 x 1024</option>
+              <option value="1536">1536 x 1536</option>
+              <option value="2048">2048 x 2048</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Controls</div>
+          <div class="btn-group">
+            <button class="btn" id="renderBtn" onclick="toggleRender()">Start</button>
+            <button class="btn btn-secondary" onclick="resetRender()">Reset</button>
+          </div>
+          <div style="margin-top: 8px;">
+            <button class="btn btn-secondary" onclick="saveImage()">Save Image</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Statistics</div>
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">Iterations</div>
+              <div class="stat-value" id="statIterations">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">FPS</div>
+              <div class="stat-value" id="statFPS">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Xforms</div>
+              <div class="stat-value" id="statXforms">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Variations</div>
+              <div class="stat-value" id="statVariations">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">About</div>
+          <p class="info-text">
+            WebGL flame fractal renderer. Uses GPU-accelerated chaos game algorithm
+            to render flam3 genomes in real-time. Generated from Prime Terrain
+            second differences and ratios.
+          </p>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="index.html">Explorer</a>
+        <a href="flames.html">Generator</a>
+        <a href="visualizations.html">Visualizations</a>
+      </nav>
+    </aside>
+
+    <main class="canvas-container">
+      <canvas id="flameCanvas" width="1024" height="1024"></canvas>
+      <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div id="loadingText">Loading...</div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ============================================================
+    // FLAME PARSER - Parse flam3 XML format
+    // ============================================================
+
+    function parseFlameXML(xmlString) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlString, 'text/xml');
+
+      const flameEl = doc.querySelector('flame');
+      if (!flameEl) throw new Error('No <flame> element found');
+
+      const flame = {
+        name: flameEl.getAttribute('name') || 'unnamed',
+        size: parseFloatArray(flameEl.getAttribute('size') || '1024 1024'),
+        center: parseFloatArray(flameEl.getAttribute('center') || '0 0'),
+        scale: parseFloat(flameEl.getAttribute('scale') || '200'),
+        rotate: parseFloat(flameEl.getAttribute('rotate') || '0'),
+        brightness: parseFloat(flameEl.getAttribute('brightness') || '4'),
+        gamma: parseFloat(flameEl.getAttribute('gamma') || '4'),
+        xforms: [],
+        finalXform: null,
+        palette: []
+      };
+
+      // Parse xforms
+      const xformEls = flameEl.querySelectorAll('xform');
+      xformEls.forEach(el => {
+        flame.xforms.push(parseXform(el));
+      });
+
+      // Parse final xform
+      const finalEl = flameEl.querySelector('finalxform');
+      if (finalEl) {
+        flame.finalXform = parseXform(finalEl);
+      }
+
+      // Parse palette
+      const paletteEl = flameEl.querySelector('palette');
+      if (paletteEl) {
+        flame.palette = parsePalette(paletteEl.textContent);
+      } else {
+        // Default grayscale palette
+        flame.palette = generateDefaultPalette();
+      }
+
+      return flame;
+    }
+
+    function parseXform(el) {
+      const xform = {
+        weight: parseFloat(el.getAttribute('weight') || '1'),
+        color: parseFloat(el.getAttribute('color') || '0'),
+        symmetry: parseFloat(el.getAttribute('symmetry') || '0'),
+        coefs: parseFloatArray(el.getAttribute('coefs') || '1 0 0 1 0 0'),
+        post: parseFloatArray(el.getAttribute('post') || '1 0 0 1 0 0'),
+        variations: {}
+      };
+
+      // Parse variations
+      const variationNames = [
+        'linear', 'sinusoidal', 'spherical', 'swirl', 'horseshoe',
+        'polar', 'handkerchief', 'heart', 'disc', 'spiral',
+        'hyperbolic', 'diamond', 'ex', 'julia', 'bent',
+        'waves', 'fisheye', 'popcorn', 'exponential', 'power',
+        'cosine', 'rings', 'fan', 'blob', 'pdj',
+        'fan2', 'rings2', 'eyefish', 'bubble', 'cylinder',
+        'blur', 'gaussian_blur', 'noise'
+      ];
+
+      variationNames.forEach(name => {
+        const val = el.getAttribute(name);
+        if (val !== null) {
+          xform.variations[name] = parseFloat(val);
+        }
+      });
+
+      // Parse parametric variation params
+      const pdj = ['pdj_a', 'pdj_b', 'pdj_c', 'pdj_d'];
+      pdj.forEach(p => {
+        const val = el.getAttribute(p);
+        if (val !== null) xform[p] = parseFloat(val);
+      });
+
+      const fan2 = ['fan2_x', 'fan2_y'];
+      fan2.forEach(p => {
+        const val = el.getAttribute(p);
+        if (val !== null) xform[p] = parseFloat(val);
+      });
+
+      const julian = ['julian_power', 'julian_dist'];
+      julian.forEach(p => {
+        const val = el.getAttribute(p);
+        if (val !== null) xform[p] = parseFloat(val);
+      });
+
+      return xform;
+    }
+
+    function parseFloatArray(str) {
+      return str.trim().split(/\s+/).map(parseFloat);
+    }
+
+    function parsePalette(text) {
+      const hex = text.replace(/\s+/g, '');
+      const colors = [];
+      for (let i = 0; i < hex.length; i += 6) {
+        const r = parseInt(hex.substr(i, 2), 16) / 255;
+        const g = parseInt(hex.substr(i + 2, 2), 16) / 255;
+        const b = parseInt(hex.substr(i + 4, 2), 16) / 255;
+        colors.push([r, g, b]);
+      }
+      // Ensure 256 colors
+      while (colors.length < 256) {
+        colors.push(colors[colors.length - 1] || [1, 1, 1]);
+      }
+      return colors.slice(0, 256);
+    }
+
+    function generateDefaultPalette() {
+      const colors = [];
+      for (let i = 0; i < 256; i++) {
+        const t = i / 255;
+        colors.push([t, t * 0.8, t * 0.6]);
+      }
+      return colors;
+    }
+
+    // ============================================================
+    // WEBGL RENDERER
+    // ============================================================
+
+    let gl, canvas;
+    let renderProgram, displayProgram;
+    let accumTexture, accumFramebuffer;
+    let particleBuffer;
+    let renderVAO, displayVAO;
+    let flame = null;
+    let isRendering = false;
+    let totalIterations = 0;
+    let lastFrameTime = 0;
+    let frameCount = 0;
+    let fps = 0;
+    let useFloatAccum = false;
+    let urlLoadParams = null;
+
+    const PARTICLE_COUNT = 100000;
+
+    // Vertex shader for particle rendering (chaos game)
+    const renderVertexShader = `#version 300 es
+      precision highp float;
+
+      uniform vec2 u_resolution;
+      uniform float u_scale;
+      uniform vec2 u_center;
+      uniform float u_rotate;
+      uniform float u_time;
+      uniform int u_iterations;
+
+      // Xform data (max 16 xforms)
+      uniform int u_numXforms;
+      uniform float u_weights[16];
+      uniform float u_colors[16];
+      uniform mat3 u_coefs[16];
+      uniform float u_variations[16 * 8]; // 8 variations per xform
+
+      // Palette
+      uniform sampler2D u_palette;
+
+      out vec4 v_color;
+
+      // Random number generator
+      uint hash(uint x) {
+        x += (x << 10u);
+        x ^= (x >> 6u);
+        x += (x << 3u);
+        x ^= (x >> 11u);
+        x += (x << 15u);
+        return x;
+      }
+
+      float random(inout uint seed) {
+        seed = hash(seed);
+        return float(seed) / 4294967295.0;
+      }
+
+      // Variations
+      vec2 linear(vec2 p) { return p; }
+      vec2 sinusoidal(vec2 p) { return sin(p); }
+      vec2 spherical(vec2 p) {
+        float r2 = dot(p, p) + 1e-6;
+        return p / r2;
+      }
+      vec2 swirl(vec2 p) {
+        float r2 = dot(p, p);
+        float s = sin(r2);
+        float c = cos(r2);
+        return vec2(p.x * s - p.y * c, p.x * c + p.y * s);
+      }
+      vec2 horseshoe(vec2 p) {
+        float r = length(p) + 1e-6;
+        return vec2((p.x - p.y) * (p.x + p.y), 2.0 * p.x * p.y) / r;
+      }
+      vec2 polar(vec2 p) {
+        float r = length(p);
+        float theta = atan(p.y, p.x);
+        return vec2(theta / 3.14159265, r - 1.0);
+      }
+      vec2 disc(vec2 p) {
+        float r = length(p) * 3.14159265;
+        float theta = atan(p.y, p.x) / 3.14159265;
+        return vec2(theta * sin(r), theta * cos(r));
+      }
+      vec2 spiral(vec2 p) {
+        float r = length(p) + 1e-6;
+        float theta = atan(p.y, p.x);
+        return vec2(cos(theta) + sin(r), sin(theta) - cos(r)) / r;
+      }
+      vec2 hyperbolic(vec2 p) {
+        float r = length(p) + 1e-6;
+        float theta = atan(p.y, p.x);
+        return vec2(sin(theta) / r, r * cos(theta));
+      }
+      vec2 julia(vec2 p) {
+        float r = pow(dot(p, p), 0.25);
+        float theta = atan(p.y, p.x) * 0.5;
+        // Randomly add pi
+        if (fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453) > 0.5) {
+          theta += 3.14159265;
+        }
+        return r * vec2(cos(theta), sin(theta));
+      }
+      vec2 bent(vec2 p) {
+        vec2 result = p;
+        if (p.x < 0.0) result.x *= 2.0;
+        if (p.y < 0.0) result.y *= 0.5;
+        return result;
+      }
+      vec2 fisheye(vec2 p) {
+        float r = length(p);
+        return 2.0 * p / (r + 1.0);
+      }
+      vec2 eyefish(vec2 p) {
+        float r = length(p);
+        return 2.0 * p / (r + 1.0);
+      }
+      vec2 bubble(vec2 p) {
+        float r2 = dot(p, p);
+        return 4.0 * p / (r2 + 4.0);
+      }
+      vec2 blur(vec2 p, inout uint seed) {
+        float r = random(seed);
+        float theta = random(seed) * 6.28318530718;
+        return r * vec2(cos(theta), sin(theta));
+      }
+
+      vec2 applyVariations(vec2 p, int xformIdx, inout uint seed) {
+        vec2 result = vec2(0.0);
+        int baseIdx = xformIdx * 8;
+
+        float w0 = u_variations[baseIdx + 0]; // linear
+        float w1 = u_variations[baseIdx + 1]; // sinusoidal
+        float w2 = u_variations[baseIdx + 2]; // spherical
+        float w3 = u_variations[baseIdx + 3]; // swirl
+        float w4 = u_variations[baseIdx + 4]; // julia
+        float w5 = u_variations[baseIdx + 5]; // fisheye/eyefish
+        float w6 = u_variations[baseIdx + 6]; // bubble
+        float w7 = u_variations[baseIdx + 7]; // blur
+
+        if (w0 > 0.0) result += w0 * linear(p);
+        if (w1 > 0.0) result += w1 * sinusoidal(p);
+        if (w2 > 0.0) result += w2 * spherical(p);
+        if (w3 > 0.0) result += w3 * swirl(p);
+        if (w4 > 0.0) result += w4 * julia(p);
+        if (w5 > 0.0) result += w5 * eyefish(p);
+        if (w6 > 0.0) result += w6 * bubble(p);
+        if (w7 > 0.0) result += w7 * blur(p, seed);
+
+        // If no variations, default to linear
+        if (w0 + w1 + w2 + w3 + w4 + w5 + w6 + w7 < 0.001) {
+          result = p;
+        }
+
+        return result;
+      }
+
+      int selectXform(inout uint seed) {
+        float r = random(seed);
+        float cumWeight = 0.0;
+        float totalWeight = 0.0;
+
+        for (int i = 0; i < 16; i++) {
+          if (i >= u_numXforms) break;
+          totalWeight += u_weights[i];
+        }
+
+        for (int i = 0; i < 16; i++) {
+          if (i >= u_numXforms) break;
+          cumWeight += u_weights[i] / totalWeight;
+          if (r < cumWeight) return i;
+        }
+        return 0;
+      }
+
+      void main() {
+        uint seed = uint(gl_VertexID) + uint(u_time * 1000.0);
+
+        // Start with random point
+        vec2 p = vec2(random(seed) * 2.0 - 1.0, random(seed) * 2.0 - 1.0);
+        float colorIdx = random(seed);
+
+        // Run chaos game iterations
+        for (int iter = 0; iter < 50; iter++) {
+          if (iter >= u_iterations) break;
+
+          int xformIdx = selectXform(seed);
+
+          // Apply affine transform
+          mat3 coef = u_coefs[xformIdx];
+          vec2 tp = vec2(
+            coef[0][0] * p.x + coef[0][1] * p.y + coef[0][2],
+            coef[1][0] * p.x + coef[1][1] * p.y + coef[1][2]
+          );
+
+          // Apply variations
+          p = applyVariations(tp, xformIdx, seed);
+
+          // Update color
+          colorIdx = (colorIdx + u_colors[xformIdx]) * 0.5;
+        }
+
+        // Apply rotation
+        float rotRad = u_rotate * 3.14159265 / 180.0;
+        float cr = cos(rotRad);
+        float sr = sin(rotRad);
+        p = vec2(p.x * cr - p.y * sr, p.x * sr + p.y * cr);
+
+        // Transform to screen space
+        vec2 pos = (p - u_center) * u_scale / u_resolution + 0.5;
+        gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
+        gl_PointSize = 1.0;
+
+        // Sample palette for color
+        vec4 palColor = texture(u_palette, vec2(colorIdx, 0.5));
+        v_color = vec4(palColor.rgb, 1.0);
+      }
+    `;
+
+    const renderFragmentShader = `#version 300 es
+      precision highp float;
+      in vec4 v_color;
+      out vec4 fragColor;
+
+      void main() {
+        fragColor = v_color;
+      }
+    `;
+
+    // Display shader (tone mapping)
+    const displayVertexShader = `#version 300 es
+      in vec2 a_position;
+      out vec2 v_texCoord;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+        v_texCoord = a_position * 0.5 + 0.5;
+      }
+    `;
+
+    const displayFragmentShader = `#version 300 es
+      precision highp float;
+      in vec2 v_texCoord;
+      uniform sampler2D u_accumTexture;
+      uniform float u_brightness;
+      uniform float u_gamma;
+      uniform float u_totalSamples;
+      uniform int u_isFloatAccum;
+      out vec4 fragColor;
+
+      void main() {
+        vec4 accum = texture(u_accumTexture, v_texCoord);
+        float density = accum.a;
+        vec3 color = accum.rgb / max(density, 1e-6);
+
+        if (u_isFloatAccum == 1) {
+          // Log-density mapping for float accumulation
+          if (density < 1.0) {
+            fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            return;
+          }
+          float logDensity = log(density) / log(u_totalSamples + 1.0);
+          color = color * u_brightness * logDensity;
+        } else {
+          // 8-bit accumulation fallback: softer mapping to avoid black output
+          float mapped = pow(clamp(density, 0.0, 1.0), 0.4);
+          color = color * u_brightness * mapped;
+        }
+
+        color = pow(color, vec3(1.0 / u_gamma));
+        fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+      }
+    `;
+
+    function initWebGL() {
+      canvas = document.getElementById('flameCanvas');
+      gl = canvas.getContext('webgl2', {
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: true
+      });
+
+      if (!gl) {
+        showError('WebGL 2.0 not supported');
+        return false;
+      }
+
+      // Extensions / capabilities
+      const colorFloatExt = gl.getExtension('EXT_color_buffer_float');
+      const floatBlendExt = gl.getExtension('EXT_float_blend');
+      const floatLinearExt = gl.getExtension('OES_texture_float_linear');
+      useFloatAccum = !!colorFloatExt && !!floatBlendExt;
+
+      if (!useFloatAccum) {
+        showWarning('Float accumulation not supported (or float blending unavailable). Using 8-bit accumulation (lower quality, but should render).');
+      } else if (!floatLinearExt) {
+        // Not fatal since we use 8-bit palette texture, but note for clarity
+        console.warn('OES_texture_float_linear not supported; using 8-bit palette texture.');
+      }
+
+      // Enable blending for accumulation
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+
+      // Create shaders
+      renderProgram = createProgram(renderVertexShader, renderFragmentShader);
+      displayProgram = createProgram(displayVertexShader, displayFragmentShader);
+
+      if (!renderProgram || !displayProgram) {
+        showError('Failed to create shaders');
+        return false;
+      }
+
+      // Create particle buffer (just indices)
+      const indices = new Float32Array(PARTICLE_COUNT * 2);
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        indices[i * 2] = Math.random() * 2 - 1;
+        indices[i * 2 + 1] = Math.random() * 2 - 1;
+      }
+      particleBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+      // Create quad buffer for display
+      const quadBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1, 1, -1, -1, 1, 1, 1
+      ]), gl.STATIC_DRAW);
+
+      // VAOs (required for WebGL2 draw calls on some drivers)
+      renderVAO = gl.createVertexArray();
+      gl.bindVertexArray(renderVAO);
+      gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
+      const posLoc = gl.getAttribLocation(renderProgram, 'a_position');
+      if (posLoc >= 0) {
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+      }
+      gl.bindVertexArray(null);
+
+      displayVAO = gl.createVertexArray();
+      gl.bindVertexArray(displayVAO);
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+      const displayPosLoc = gl.getAttribLocation(displayProgram, 'a_position');
+      if (displayPosLoc >= 0) {
+        gl.enableVertexAttribArray(displayPosLoc);
+        gl.vertexAttribPointer(displayPosLoc, 2, gl.FLOAT, false, 0, 0);
+      }
+      gl.bindVertexArray(null);
+
+      // Create accumulation texture and framebuffer
+      createAccumBuffer();
+
+      return true;
+    }
+
+    function createAccumBuffer() {
+      const size = parseInt(document.getElementById('resolution').value);
+      canvas.width = size;
+      canvas.height = size;
+
+      // Delete old resources
+      if (accumTexture) gl.deleteTexture(accumTexture);
+      if (accumFramebuffer) gl.deleteFramebuffer(accumFramebuffer);
+
+      // Create accumulation texture
+      accumTexture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, accumTexture);
+      if (useFloatAccum) {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, size, size, 0, gl.RGBA, gl.HALF_FLOAT, null);
+      } else {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      }
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      // Create framebuffer
+      accumFramebuffer = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, accumFramebuffer);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, accumTexture, 0);
+
+      const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+      if (status !== gl.FRAMEBUFFER_COMPLETE) {
+        // Fallback to 8-bit if float failed
+        if (useFloatAccum) {
+          useFloatAccum = false;
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          createAccumBuffer();
+          return;
+        }
+        showWarning('WebGL framebuffer incomplete in 8-bit mode. Rendering may not work on this device.');
+      }
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    function createProgram(vsSource, fsSource) {
+      const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+      const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+      if (!vs || !fs) return null;
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error('Program link error:', gl.getProgramInfoLog(program));
+        return null;
+      }
+
+      return program;
+    }
+
+    function compileShader(type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+
+      return shader;
+    }
+
+    function createPaletteTexture(palette) {
+      const data = new Uint8Array(256 * 4);
+      for (let i = 0; i < 256; i++) {
+        data[i * 4] = Math.max(0, Math.min(255, Math.round(palette[i][0] * 255)));
+        data[i * 4 + 1] = Math.max(0, Math.min(255, Math.round(palette[i][1] * 255)));
+        data[i * 4 + 2] = Math.max(0, Math.min(255, Math.round(palette[i][2] * 255)));
+        data[i * 4 + 3] = 255;
+      }
+
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      return texture;
+    }
+
+    function setupUniforms() {
+      if (!flame || !renderProgram) return;
+
+      gl.useProgram(renderProgram);
+
+      const size = parseInt(document.getElementById('resolution').value);
+      gl.uniform2f(gl.getUniformLocation(renderProgram, 'u_resolution'), size, size);
+      gl.uniform1f(gl.getUniformLocation(renderProgram, 'u_scale'), flame.scale);
+      gl.uniform2f(gl.getUniformLocation(renderProgram, 'u_center'), flame.center[0], flame.center[1]);
+      gl.uniform1f(gl.getUniformLocation(renderProgram, 'u_rotate'), flame.rotate);
+      gl.uniform1i(gl.getUniformLocation(renderProgram, 'u_iterations'), 30);
+      gl.uniform1i(gl.getUniformLocation(renderProgram, 'u_numXforms'), flame.xforms.length);
+
+      // Set xform weights and colors
+      const weights = new Float32Array(16);
+      const colors = new Float32Array(16);
+      flame.xforms.forEach((xf, i) => {
+        if (i < 16) {
+          weights[i] = xf.weight;
+          colors[i] = xf.color;
+        }
+      });
+      gl.uniform1fv(gl.getUniformLocation(renderProgram, 'u_weights'), weights);
+      gl.uniform1fv(gl.getUniformLocation(renderProgram, 'u_colors'), colors);
+
+      // Set coefficient matrices
+      for (let i = 0; i < Math.min(flame.xforms.length, 16); i++) {
+        const xf = flame.xforms[i];
+        const c = xf.coefs;
+        // coefs format: a b c d e f -> matrix [[a,b,e],[c,d,f],[0,0,1]]
+        const mat = new Float32Array([
+          c[0] || 1, c[1] || 0, c[4] || 0,
+          c[2] || 0, c[3] || 1, c[5] || 0,
+          0, 0, 1
+        ]);
+        gl.uniformMatrix3fv(gl.getUniformLocation(renderProgram, `u_coefs[${i}]`), false, mat);
+      }
+
+      // Set variation weights (8 per xform)
+      const variations = new Float32Array(16 * 8);
+      flame.xforms.forEach((xf, i) => {
+        if (i < 16) {
+          const base = i * 8;
+          variations[base + 0] = xf.variations.linear || 0;
+          variations[base + 1] = xf.variations.sinusoidal || 0;
+          variations[base + 2] = xf.variations.spherical || 0;
+          variations[base + 3] = xf.variations.swirl || 0;
+          variations[base + 4] = xf.variations.julia || 0;
+          variations[base + 5] = xf.variations.eyefish || xf.variations.fisheye || 0;
+          variations[base + 6] = xf.variations.bubble || 0;
+          variations[base + 7] = xf.variations.blur || xf.variations.gaussian_blur || 0;
+        }
+      });
+      gl.uniform1fv(gl.getUniformLocation(renderProgram, 'u_variations'), variations);
+
+      // Create and bind palette texture
+      if (renderProgram.paletteTexture) {
+        gl.deleteTexture(renderProgram.paletteTexture);
+      }
+      renderProgram.paletteTexture = createPaletteTexture(flame.palette);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, renderProgram.paletteTexture);
+      gl.uniform1i(gl.getUniformLocation(renderProgram, 'u_palette'), 0);
+    }
+
+    function render() {
+      if (!isRendering || !flame) return;
+
+      const quality = parseInt(document.getElementById('quality').value);
+      const brightness = parseFloat(document.getElementById('brightness').value);
+      const gamma = parseFloat(document.getElementById('gamma').value);
+
+      // Render to accumulation buffer
+      gl.bindFramebuffer(gl.FRAMEBUFFER, accumFramebuffer);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+
+      gl.useProgram(renderProgram);
+      gl.uniform1f(gl.getUniformLocation(renderProgram, 'u_time'), performance.now() / 1000);
+
+      // Draw particles
+      gl.bindVertexArray(renderVAO);
+
+      // Multiple batches per frame for quality
+      const batchSize = Math.min(PARTICLE_COUNT, quality);
+      const batches = Math.ceil(quality / PARTICLE_COUNT);
+
+      for (let b = 0; b < batches; b++) {
+        gl.uniform1f(gl.getUniformLocation(renderProgram, 'u_time'), performance.now() / 1000 + b * 0.001);
+        gl.drawArrays(gl.POINTS, 0, batchSize);
+      }
+
+      totalIterations += quality * 30; // iterations per particle
+
+      // Display result
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.disable(gl.BLEND);
+
+      gl.useProgram(displayProgram);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, accumTexture);
+      gl.uniform1i(gl.getUniformLocation(displayProgram, 'u_accumTexture'), 0);
+      gl.uniform1f(gl.getUniformLocation(displayProgram, 'u_brightness'), brightness);
+      gl.uniform1f(gl.getUniformLocation(displayProgram, 'u_gamma'), gamma);
+      gl.uniform1f(gl.getUniformLocation(displayProgram, 'u_totalSamples'), totalIterations / (canvas.width * canvas.height));
+      gl.uniform1i(gl.getUniformLocation(displayProgram, 'u_isFloatAccum'), useFloatAccum ? 1 : 0);
+
+      gl.bindVertexArray(displayVAO);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      gl.enable(gl.BLEND);
+
+      // Update stats
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFrameTime >= 1000) {
+        fps = frameCount;
+        frameCount = 0;
+        lastFrameTime = now;
+      }
+
+      document.getElementById('statIterations').textContent = formatNumber(totalIterations);
+      document.getElementById('statFPS').textContent = fps;
+
+      requestAnimationFrame(render);
+    }
+
+    function formatNumber(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toString();
+    }
+
+    // ============================================================
+    // UI HANDLERS
+    // ============================================================
+
+    const API = 'https://api.fractal-core.com/api/v1';
+
+    function showLoading(show, text = 'Loading...') {
+      const overlay = document.getElementById('loadingOverlay');
+      overlay.classList.toggle('hidden', !show);
+      document.getElementById('loadingText').textContent = text;
+    }
+
+    function showError(message) {
+      const el = document.getElementById('errorMessage');
+      if (message) {
+        el.textContent = message;
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    }
+
+    function showWarning(message) {
+      const el = document.getElementById('warnMessage');
+      if (message) {
+        el.textContent = message;
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    }
+
+    async function loadFromAPI(extraParams = null) {
+      const n = document.getElementById('primeIndex').value;
+      if (!n) {
+        showError('Please enter a prime index');
+        return;
+      }
+
+      const maxIndex = 500000;
+      if (!extraParams || (extraParams.n_type || 'index') === 'index') {
+        const nNum = Number(n);
+        if (Number.isFinite(nNum) && nNum > maxIndex) {
+          showError(`Index ${nNum} is likely too large for live rendering. Try <= ${maxIndex}, or use an async job.`);
+          return;
+        }
+      }
+
+      showError(null);
+      showLoading(true, 'Generating flame...');
+
+      try {
+        const params = {
+          n,
+          n_type: 'index',
+          k: 20,
+          variations: 'classic',
+          color_mode: 'sequence',
+          ...(extraParams || {})
+        };
+
+        const queryString = Object.entries(params)
+          .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+          .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+          .join('&');
+        const url = `${API}/flame?${queryString}`;
+        const res = await fetch(url, {
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to load flame');
+        }
+
+        const xml = await res.text();
+        loadFlameFromXML(xml);
+      } catch (err) {
+        showError(err.message);
+        showLoading(false);
+      }
+    }
+
+    function loadFromXML() {
+      const xml = document.getElementById('xmlInput').value;
+      if (!xml.trim()) {
+        showError('Please paste XML genome');
+        return;
+      }
+
+      showError(null);
+      loadFlameFromXML(xml);
+    }
+
+    function loadFlameFromXML(xml) {
+      try {
+        flame = parseFlameXML(xml);
+
+        // Update UI from flame params
+        document.getElementById('brightness').value = flame.brightness;
+        document.getElementById('brightnessValue').textContent = flame.brightness.toFixed(1);
+        document.getElementById('gamma').value = flame.gamma;
+        document.getElementById('gammaValue').textContent = flame.gamma.toFixed(1);
+
+        // Count unique variations
+        const allVars = new Set();
+        flame.xforms.forEach(xf => {
+          Object.keys(xf.variations).forEach(v => {
+            if (xf.variations[v] > 0) allVars.add(v);
+          });
+        });
+
+        document.getElementById('statXforms').textContent = flame.xforms.length;
+        document.getElementById('statVariations').textContent = allVars.size;
+
+        // Setup WebGL
+        if (!gl) {
+          initWebGL();
+        }
+        createAccumBuffer();
+        setupUniforms();
+        resetRender();
+
+        showLoading(false);
+
+        // Auto-start rendering
+        if (!isRendering) {
+          toggleRender();
+        }
+      } catch (err) {
+        showError('Failed to parse XML: ' + err.message);
+        showLoading(false);
+      }
+    }
+
+    function toggleRender() {
+      isRendering = !isRendering;
+      document.getElementById('renderBtn').textContent = isRendering ? 'Pause' : 'Start';
+
+      if (isRendering) {
+        lastFrameTime = performance.now();
+        frameCount = 0;
+        render();
+      }
+    }
+
+    function resetRender() {
+      // Clear accumulation buffer
+      if (gl && accumFramebuffer) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, accumFramebuffer);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
+      totalIterations = 0;
+      document.getElementById('statIterations').textContent = '0';
+    }
+
+    function saveImage() {
+      const link = document.createElement('a');
+      link.download = `flame_${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Slider handlers
+    document.getElementById('quality').addEventListener('input', (e) => {
+      document.getElementById('qualityValue').textContent = e.target.value;
+    });
+
+    document.getElementById('brightness').addEventListener('input', (e) => {
+      document.getElementById('brightnessValue').textContent = parseFloat(e.target.value).toFixed(1);
+    });
+
+    document.getElementById('gamma').addEventListener('input', (e) => {
+      document.getElementById('gammaValue').textContent = parseFloat(e.target.value).toFixed(1);
+    });
+
+    document.getElementById('resolution').addEventListener('change', () => {
+      if (gl) {
+        createAccumBuffer();
+        if (flame) {
+          setupUniforms();
+          resetRender();
+        }
+      }
+    });
+
+    // Initialize
+    window.addEventListener('load', () => {
+      if (!initWebGL()) {
+        showError('Failed to initialize WebGL 2.0. Please use a modern browser.');
+      }
+
+      // Load from URL parameter if present
+      const params = new URLSearchParams(window.location.search);
+      const n = params.get('n');
+      if (n) {
+        document.getElementById('primeIndex').value = n;
+        urlLoadParams = {
+          n,
+          n_type: params.get('n_type') || 'index',
+          k: params.get('k') || 20,
+          variations: params.get('variations') || 'classic',
+          color_mode: params.get('color_mode') || 'sequence',
+          quality: params.get('quality') || undefined,
+          width: params.get('width') || undefined,
+          height: params.get('height') || undefined
+        };
+        if (urlLoadParams.quality) {
+          document.getElementById('quality').value = urlLoadParams.quality;
+          document.getElementById('qualityValue').textContent = urlLoadParams.quality;
+        }
+        loadFromAPI(urlLoadParams);
+      }
+    });
+  </script>
+</body>
+</html>

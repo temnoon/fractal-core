@@ -25,6 +25,14 @@ id = "e5932603e8af47d6bbc55b8a772f3657"
 binding = "LPP_KV"
 id = "0aa6ebc3c6b54afb90cd150cb467a7ec"
 
+# KV namespace for async job queue persistence
+[[kv_namespaces]]
+binding = "JOBS_KV"
+id = "523db24c9abe4c99a6a061e2a87b57c6"
+
+[limits]
+cpu_ms = 300_000  # 5 minutes (default is 30s)
+
 [vars]
 ENVIRONMENT = "production"
 # ADMIN_API_KEY should be set via wrangler secret put ADMIN_API_KEY

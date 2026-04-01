@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Terrain - SVG Fractal Gallery</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-card: #0f1419;
+      --border: #1e2633;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #7ee787;
+      --accent3: #f78166;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 20px;
+      font-size: 14px;
+    }
+
+    nav a:hover {
+      color: var(--text);
+    }
+
+    .controls {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 14px;
+      min-width: 120px;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-green {
+      background: var(--accent2);
+      color: #000;
+    }
+
+    .btn-orange {
+      background: var(--accent3);
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+
+    .card-image {
+      aspect-ratio: 1;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .card-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .card-info {
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .card-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .card-btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .featured {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    .featured.active {
+      display: block;
+    }
+
+    .featured-content {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .featured-image {
+      flex: 1;
+      min-width: 300px;
+      max-width: 600px;
+      aspect-ratio: 1;
+      background: var(--bg);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .featured-image img {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .featured-info {
+      flex: 1;
+      min-width: 250px;
+    }
+
+    .featured-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .featured-meta {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .featured-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .info-box {
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .info-box strong {
+      color: var(--accent);
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>SVG Fractal Gallery</h1>
+      <nav>
+        <a href="index.html">Explorer</a>
+        <a href="flames.html">Flame Generator</a>
+        <a href="player.html">Flame Player</a>
+        <a href="visualizations.html">Visualizations</a>
+      </nav>
+    </header>
+
+    <div class="info-box">
+      <strong>Vector fractals from prime terrain.</strong>
+      Each image is a unique visual fingerprint of a prime neighborhood, generated from second differences and ratios.
+      SVGs are infinitely scalable - perfect for prints, wallpapers, or further editing.
+    </div>
+
+    <div class="controls">
+      <div class="control-row">
+        <div class="control-group">
+          <label>Prime Index</label>
+          <input type="text" id="primeIndex" value="1000" placeholder="e.g., 1000">
+        </div>
+        <div class="control-group">
+          <label>Neighborhood Size</label>
+          <input type="number" id="k" value="20" min="5" max="100">
+        </div>
+        <div class="control-group">
+          <label>Color Scheme</label>
+          <select id="color">
+            <option value="prime">Prime (warm)</option>
+            <option value="fire">Fire</option>
+            <option value="ice">Ice</option>
+            <option value="rainbow">Rainbow</option>
+            <option value="mono">Monochrome</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Size</label>
+          <select id="size">
+            <option value="600">600 x 600</option>
+            <option value="800" selected>800 x 800</option>
+            <option value="1200">1200 x 1200</option>
+            <option value="2000">2000 x 2000</option>
+          </select>
+        </div>
+        <button class="btn" onclick="generateGallery()">Generate All Modes</button>
+        <button class="btn btn-green" onclick="randomPrime()">Random Prime</button>
+      </div>
+    </div>
+
+    <div class="featured" id="featured">
+      <div class="featured-content">
+        <div class="featured-image">
+          <img id="featuredImg" src="" alt="Featured SVG">
+        </div>
+        <div class="featured-info">
+          <div class="featured-title" id="featuredTitle">-</div>
+          <div class="featured-meta" id="featuredMeta">-</div>
+          <div class="featured-actions">
+            <button class="btn" onclick="downloadFeatured()">Download SVG</button>
+            <button class="btn btn-orange" onclick="openInNewTab()">Open Full Size</button>
+            <button class="btn" style="background: var(--border);" onclick="closeFeatured()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="loading" id="loading" style="display: none;">
+      <div class="spinner"></div>
+      <div>Generating fractals...</div>
+    </div>
+
+    <div class="gallery" id="gallery"></div>
+
+    <footer>
+      <p>
+        Prime Terrain SVG Generator |
+        <a href="https://api.fractal-core.com/api/v1/svg/info" target="_blank">API Documentation</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    const API = 'https://api.fractal-core.com/api/v1';
+    const MODES = ['mandala', 'tree', 'spiral', 'burst', 'walk', 'wave'];
+    const MODE_NAMES = {
+      mandala: 'Mandala',
+      tree: 'Fractal Tree',
+      spiral: 'Spiral Rose',
+      burst: 'Radial Burst',
+      walk: 'Turtle Walk',
+      wave: 'Wave Interference'
+    };
+    const MODE_DESC = {
+      mandala: 'd2 drives symmetry, ratios drive petal size',
+      tree: 'd2 drives branch angles, ratios drive lengths',
+      spiral: 'd2 modulates angle, ratios modulate radius',
+      burst: 'd2 drives ray length, ratios drive decorations',
+      walk: 'd2 is turn angle, ratio is step length',
+      wave: 'd2/ratios define wave source frequencies'
+    };
+
+    let currentFeatured = null;
+
+    function getParams() {
+      return {
+        n: document.getElementById('primeIndex').value,
+        k: document.getElementById('k').value,
+        color: document.getElementById('color').value,
+        size: document.getElementById('size').value
+      };
+    }
+
+    function buildUrl(mode) {
+      const p = getParams();
+      return `${API}/svg?n=${p.n}&k=${p.k}&mode=${mode}&color=${p.color}&width=${p.size}&height=${p.size}`;
+    }
+
+    function generateGallery() {
+      const gallery = document.getElementById('gallery');
+      const loading = document.getElementById('loading');
+
+      gallery.innerHTML = '';
+      loading.style.display = 'block';
+      closeFeatured();
+
+      const p = getParams();
+
+      MODES.forEach((mode, idx) => {
+        const url = buildUrl(mode);
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-image" onclick="showFeatured('${mode}')">
+            <img src="${url}" alt="${MODE_NAMES[mode]}" loading="lazy">
+          </div>
+          <div class="card-info">
+            <div>
+              <div class="card-title">${MODE_NAMES[mode]}</div>
+              <div class="card-desc">${MODE_DESC[mode]}</div>
+            </div>
+            <div class="card-actions">
+              <button class="card-btn" onclick="event.stopPropagation(); downloadSvg('${mode}')">Download</button>
+            </div>
+          </div>
+        `;
+
+        gallery.appendChild(card);
+      });
+
+      // Hide loading when first image loads
+      const firstImg = gallery.querySelector('img');
+      if (firstImg) {
+        firstImg.onload = () => {
+          loading.style.display = 'none';
+        };
+        firstImg.onerror = () => {
+          loading.style.display = 'none';
+        };
+      }
+    }
+
+    function showFeatured(mode) {
+      const url = buildUrl(mode);
+      const p = getParams();
+
+      currentFeatured = { mode, url };
+
+      document.getElementById('featuredImg').src = url;
+      document.getElementById('featuredTitle').textContent = `${MODE_NAMES[mode]} - p(${p.n})`;
+      document.getElementById('featuredMeta').textContent = `Mode: ${mode} | Color: ${p.color} | Size: ${p.size}x${p.size} | k=${p.k}`;
+      document.getElementById('featured').classList.add('active');
+
+      // Scroll to featured
+      document.getElementById('featured').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function closeFeatured() {
+      document.getElementById('featured').classList.remove('active');
+      currentFeatured = null;
+    }
+
+    function downloadFeatured() {
+      if (!currentFeatured) return;
+      downloadSvg(currentFeatured.mode);
+    }
+
+    function openInNewTab() {
+      if (!currentFeatured) return;
+      window.open(currentFeatured.url, '_blank');
+    }
+
+    async function downloadSvg(mode) {
+      const url = buildUrl(mode);
+      const p = getParams();
+
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `prime_terrain_${p.n}_${mode}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+      } catch (err) {
+        alert('Download failed: ' + err.message);
+      }
+    }
+
+    function randomPrime() {
+      // Generate random prime index between 100 and 100000
+      const randomIndex = Math.floor(Math.random() * 99900) + 100;
+      document.getElementById('primeIndex').value = randomIndex;
+      generateGallery();
+    }
+
+    // Generate on load
+    window.addEventListener('load', () => {
+      // Check URL params
+      const params = new URLSearchParams(window.location.search);
+      const n = params.get('n');
+      if (n) {
+        document.getElementById('primeIndex').value = n;
+      }
+
+      generateGallery();
+    });
+  </script>
+</body>
+</html>

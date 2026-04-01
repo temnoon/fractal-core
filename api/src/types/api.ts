@@ -22,6 +22,8 @@ export interface CanonicalRequest {
   k?: number;                   // Count of primes each side (count mode)
   w?: string;                   // Half-width as string (span mode)
   include: IncludeField[];      // Sorted array
+  stats_only?: boolean;         // If true, return statistics only (no full lists)
+  top_n?: number;               // Top-N entries for stats
   engine: EngineType;
   validate: ValidationMode;
   proof: ProofLevel;
@@ -37,6 +39,8 @@ export interface NeighborhoodQuery {
   k?: string;
   w?: string;
   include?: string;             // Comma-separated
+  stats_only?: string;          // boolean
+  top_n?: string;               // integer
   engine?: EngineType;
   validate?: ValidationMode;
   proof?: ProofLevel;
@@ -55,6 +59,11 @@ export interface NeighborhoodResult {
   d2?: string[];                // Signed bigint strings
   ratio?: Rational[];           // {num, den} pairs
   indices?: number[];
+  stats?: {
+    gaps?: { value: string; count: number; pct: number }[];
+    d2?: { value: string; count: number; pct: number }[];
+    ratio?: { value: string; count: number; pct: number }[];
+  };
 }
 
 /** Receipt for proof of computation */
@@ -124,6 +133,12 @@ export interface Job {
   completed_at?: string;
   result?: SignedResponse;
   error?: string;
+  progress?: number;
+  chunksProcessed?: number;
+  userId?: string;
+  cpu_time_ms?: number;
+  primesFound?: number;
+  phase?: 'backward' | 'forward' | 'computing';
 }
 
 /** Job creation response */
@@ -142,6 +157,11 @@ export interface JobStatusResponse {
   completed_at?: string;
   result_url?: string;
   error?: string;
+  progress?: number;
+  chunks_processed?: number;
+  cpu_time_ms?: number;
+  primes_found?: number;
+  phase?: 'backward' | 'forward' | 'computing';
 }
 
 /** Verify request body */

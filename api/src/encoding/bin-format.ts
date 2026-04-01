@@ -42,14 +42,14 @@ const FLAG_INDICES = 0x10;
 
 export interface BinEncodeOptions {
   result: NeighborhoodResult;
-  centerIndex: number;
+  centerIndex?: number;
 }
 
 /**
  * Encode neighborhood result to BIN v1 format
  */
 export function binEncode(options: BinEncodeOptions): Uint8Array {
-  const { result, centerIndex } = options;
+  const { result, centerIndex = 0 } = options;
 
   const chunks: Uint8Array[] = [];
 

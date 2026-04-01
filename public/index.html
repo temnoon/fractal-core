@@ -347,7 +347,7 @@
 
     async function pollJob(jobId, n, nType, k, include) {
       const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = '<p>Large request queued. Polling...</p>';
+      resultsDiv.innerHTML = '<p><strong>pending</strong> 0%<div style="background:#1a1a2e;border-radius:4px;height:8px;margin:8px 0;overflow:hidden"><div style="background:linear-gradient(90deg,#4a9eff,#7c3aed);height:100%;width:0%;transition:width 0.5s ease"></div></div>Job queued. Computing neighborhood...</p>';
 
       const pollUrl = `${API}/jobs/${jobId}`;
       const resultUrl = `${API}/jobs/${jobId}/result`;
@@ -383,9 +383,28 @@
           const progress = data.progress ?? 0;
           const cpuInfo = formatCpuCost(data.cpu_time_ms || 0);
           const chunks = data.chunks_processed ?? 0;
+          const primesFound = data.primes_found ?? 0;
+          const phase = data.phase;
           const status = data.status || 'running';
+          const targetPrimes = Number(k) * 2;
+
+          // Build progress bar
+          const pct = Math.round(progress);
+          const bar = `<div style="background:#1a1a2e;border-radius:4px;height:8px;margin:8px 0;overflow:hidden"><div style="background:linear-gradient(90deg,#4a9eff,#7c3aed);height:100%;width:${pct}%;transition:width 0.5s ease"></div></div>`;
+
+          // Phase description
+          let phaseLabel = '';
+          if (phase === 'backward') phaseLabel = 'Walking backward from center...';
+          else if (phase === 'forward') phaseLabel = 'Walking forward from center...';
+          else if (phase === 'computing') phaseLabel = 'Computing derived sequences...';
+
+          // Primes found detail
+          const primesDetail = targetPrimes > 0
+            ? `Primes found: ${primesFound.toLocaleString()} / ${targetPrimes.toLocaleString()}`
+            : `Primes found: ${primesFound.toLocaleString()}`;
+
           const note = Number(k) >= 100000 ? 'Large requests can take several minutes. Leave this tab open.' : 'Large request in progress.';
-          resultsDiv.innerHTML = `<p>${status}... ${Math.round(progress)}% (chunks: ${chunks})${cpuInfo ? ' | ' + cpuInfo : ''}<br><span class="meta">${note}</span></p>`;
+          resultsDiv.innerHTML = `<p><strong>${status}</strong> ${pct}%${bar}${phaseLabel ? phaseLabel + '<br>' : ''}${primesDetail} | Chunks: ${chunks}${cpuInfo ? ' | ' + cpuInfo : ''}<br><span class="meta">${note}</span></p>`;
           setTimeout(check, 2000);
         } catch (err) {
           resultsDiv.innerHTML = `<div class="error">Poll error: ${err.message}</div>`;

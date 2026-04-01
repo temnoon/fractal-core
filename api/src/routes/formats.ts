@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { sieveEngine } from '../services/engines/sieve.js';
+import { primeEngine } from '../services/engines/index.js';
 import { computeNeighborhood, parseComputeOptions } from '../services/neighborhood.js';
 import type { CanonicalRequest } from '../types/api.js';
 import type { Rational } from '../types/neighborhood.js';
@@ -64,7 +64,7 @@ function getSequenceData(
     const values: bigint[] = [];
     const indices: number[] = [];
     for (let i = 0; i < n; i++) {
-      values.push(sieveEngine.primeAtIndex(startIdx + i));
+      values.push(primeEngine.primeAtIndex(startIdx + i));
       indices.push(startIdx + i);
     }
     results.push({
@@ -80,8 +80,8 @@ function getSequenceData(
     const values: bigint[] = [];
     const indices: number[] = [];
     for (let i = 0; i < n; i++) {
-      const p1 = sieveEngine.primeAtIndex(startIdx + i);
-      const p2 = sieveEngine.primeAtIndex(startIdx + i + 1);
+      const p1 = primeEngine.primeAtIndex(startIdx + i);
+      const p2 = primeEngine.primeAtIndex(startIdx + i + 1);
       values.push(p2 - p1);
       indices.push(startIdx + i);
     }
@@ -98,9 +98,9 @@ function getSequenceData(
     const values: bigint[] = [];
     const indices: number[] = [];
     for (let i = 0; i < n; i++) {
-      const p0 = sieveEngine.primeAtIndex(startIdx + i);
-      const p1 = sieveEngine.primeAtIndex(startIdx + i + 1);
-      const p2 = sieveEngine.primeAtIndex(startIdx + i + 2);
+      const p0 = primeEngine.primeAtIndex(startIdx + i);
+      const p1 = primeEngine.primeAtIndex(startIdx + i + 1);
+      const p2 = primeEngine.primeAtIndex(startIdx + i + 2);
       values.push((p2 - p1) - (p1 - p0));
       indices.push(startIdx + i);
     }
@@ -117,9 +117,9 @@ function getSequenceData(
     const values: Rational[] = [];
     const indices: number[] = [];
     for (let i = 0; i < n; i++) {
-      const p0 = sieveEngine.primeAtIndex(startIdx + i);
-      const p1 = sieveEngine.primeAtIndex(startIdx + i + 1);
-      const p2 = sieveEngine.primeAtIndex(startIdx + i + 2);
+      const p0 = primeEngine.primeAtIndex(startIdx + i);
+      const p1 = primeEngine.primeAtIndex(startIdx + i + 1);
+      const p2 = primeEngine.primeAtIndex(startIdx + i + 2);
       const d2 = (p2 - p1) - (p1 - p0);
       const span = p2 - p0;
       const g = gcd(d2 < 0n ? -d2 : d2, span);

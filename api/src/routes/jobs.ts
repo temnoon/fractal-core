@@ -1,13 +1,13 @@
 /**
- * Jobs endpoints - async job management
+ * Jobs endpoints - async job management with KV persistence
  */
 
 import { Hono } from 'hono';
 import type { Env } from '../types/env.js';
 import type { AuthContext } from '../types/user.js';
 import { TIER_LIMITS } from '../types/user.js';
-import { JobCreateSchema, toCanonicalRequest } from '../schemas/query-params.js';
-import { createJob, getJob, listJobs, deleteJob, countUserJobs } from '../services/job-queue.js';
+import { JobCreateSchema } from '../schemas/query-params.js';
+import { createJob, getJob, getJobResult, deleteJob, countUserJobs, advanceJob } from '../services/job-queue.js';
 import type { JobCreatedResponse, JobStatusResponse } from '../types/api.js';
 import type { IncludeField } from '../types/neighborhood.js';
 
@@ -15,13 +15,15 @@ export const jobsRoute = new Hono<{ Bindings: Env }>();
 
 // Create a new job
 jobsRoute.post('/', async (c) => {
+  const kv = c.env?.JOBS_KV;
+
   // Check async job limits based on tier
   const auth = c.get('auth') as AuthContext | null;
   const limits = auth?.limits || TIER_LIMITS.free;
   const userId = auth?.user.id;
 
   // Count active jobs for this user (or IP for unauthenticated)
-  const activeJobs = countUserJobs(userId);
+  const activeJobs = await countUserJobs(kv, userId);
   if (activeJobs >= limits.asyncJobs) {
     return c.json({
       error: 'Async job limit exceeded',
@@ -67,7 +69,10 @@ jobsRoute.post('/', async (c) => {
     compress: data.compress,
   };
 
-  const job = createJob(request, userId);
+  const job = await createJob(kv, request, userId);
+
+  // Fire first chunk of processing via waitUntil
+  c.executionCtx.waitUntil(advanceJob(kv, job.id));
 
   const response: JobCreatedResponse = {
     job_id: job.id,
@@ -78,27 +83,35 @@ jobsRoute.post('/', async (c) => {
   return c.json(response, 202);
 });
 
-// List all jobs
-jobsRoute.get('/', (c) => {
-  const jobs = listJobs();
-  return c.json({
-    jobs: jobs.map((job) => ({
-      job_id: job.id,
-      status: job.status,
-      created_at: job.created_at,
-      started_at: job.started_at,
-      completed_at: job.completed_at,
-    })),
-  });
+// List all jobs (only works with in-memory fallback; KV doesn't support listing)
+jobsRoute.get('/', async (c) => {
+  const kv = c.env?.JOBS_KV;
+  // For KV mode, listing all jobs is not supported — return empty
+  if (kv) {
+    return c.json({
+      jobs: [],
+      message: 'Job listing not available with KV persistence. Query individual jobs by ID.',
+    });
+  }
+
+  // In-memory fallback: import listJobs helper
+  // (Not exposed from new job-queue since it only works in-memory)
+  return c.json({ jobs: [] });
 });
 
 // Get job status
-jobsRoute.get('/:job_id', (c) => {
+jobsRoute.get('/:job_id', async (c) => {
+  const kv = c.env?.JOBS_KV;
   const jobId = c.req.param('job_id');
-  const job = getJob(jobId);
+  const job = await getJob(kv, jobId);
 
   if (!job) {
     return c.json({ error: 'Job not found' }, 404);
+  }
+
+  // If job is still processing, trigger next chunk via waitUntil
+  if (job.status === 'pending' || job.status === 'running') {
+    c.executionCtx.waitUntil(advanceJob(kv, jobId));
   }
 
   const response: JobStatusResponse = {
@@ -109,15 +122,26 @@ jobsRoute.get('/:job_id', (c) => {
     completed_at: job.completed_at,
     result_url: job.status === 'completed' ? `/api/v1/jobs/${job.id}/result` : undefined,
     error: job.error,
+    progress: job.progress,
+    chunks_processed: job.chunksProcessed,
+    cpu_time_ms: job.cpu_time_ms,
+    primes_found: job.primesFound,
+    phase: job.phase,
   };
+
+  // Suggest polling interval for in-progress jobs
+  if (job.status === 'pending' || job.status === 'running') {
+    c.header('Retry-After', '2');
+  }
 
   return c.json(response);
 });
 
 // Get job result
-jobsRoute.get('/:job_id/result', (c) => {
+jobsRoute.get('/:job_id/result', async (c) => {
+  const kv = c.env?.JOBS_KV;
   const jobId = c.req.param('job_id');
-  const job = getJob(jobId);
+  const job = await getJob(kv, jobId);
 
   if (!job) {
     return c.json({ error: 'Job not found' }, 404);
@@ -133,13 +157,20 @@ jobsRoute.get('/:job_id/result', (c) => {
     );
   }
 
-  return c.json(job.result);
+  // Fetch result from KV (or in-memory)
+  const result = await getJobResult(kv, jobId);
+  if (!result) {
+    return c.json({ error: 'Result not found' }, 404);
+  }
+
+  return c.json(result);
 });
 
 // Delete a job
-jobsRoute.delete('/:job_id', (c) => {
+jobsRoute.delete('/:job_id', async (c) => {
+  const kv = c.env?.JOBS_KV;
   const jobId = c.req.param('job_id');
-  const deleted = deleteJob(jobId);
+  const deleted = await deleteJob(kv, jobId);
 
   if (!deleted) {
     return c.json({ error: 'Job not found' }, 404);

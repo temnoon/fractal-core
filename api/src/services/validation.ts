@@ -2,9 +2,12 @@
  * Multi-engine validation service
  *
  * Validates prime computations using multiple engines to ensure correctness.
+ * - Sieve: Fast for small primes (up to 10 million)
+ * - Miller-Rabin: Deterministic for primes up to ~10^24
+ * - BPSW: Most reliable probabilistic test (no known counterexamples)
  */
 
-import { sieveEngine } from './engines/sieve.js';
+import { primeEngine, millerRabinEngine, bpswEngine, sieveEngine } from './engines/index.js';
 import type { NeighborhoodData } from '../types/neighborhood.js';
 import type { ValidationMode } from '../types/neighborhood.js';
 
@@ -19,29 +22,43 @@ export interface ValidationResult {
 }
 
 /**
+ * Check if a value is prime using the specified engine
+ */
+function isPrimeWithEngine(n: bigint, engine: string): boolean {
+  switch (engine) {
+    case 'sieve':
+      return sieveEngine.isPrime(n);
+    case 'miller-rabin':
+      return millerRabinEngine.isPrime(n);
+    case 'bpsw':
+      return bpswEngine.isPrime(n);
+    default:
+      return primeEngine.isPrime(n);
+  }
+}
+
+/**
  * Validate neighborhood data using specified validation mode
  *
- * Currently only sieve engine is implemented.
- * Dual/triple validation will compare against additional engines when available.
+ * - none: No validation, return immediately
+ * - dual: Cross-validate using sieve + Miller-Rabin
+ * - triple: Cross-validate using sieve + Miller-Rabin + BPSW
  */
 export function validateNeighborhood(
   data: NeighborhoodData,
   mode: ValidationMode
 ): ValidationResult {
-  // With only sieve engine available, we do self-consistency checks
-  const engines: string[] = [sieveEngine.name];
-
   if (mode === 'none') {
     return {
       mode,
-      engines,
+      engines: ['auto'],
       agreement: true,
     };
   }
 
-  // Self-consistency validation: verify computed values
   const discrepancies: ValidationResult['discrepancies'] = [];
 
+  // Self-consistency checks first
   // Verify gaps match prime differences
   for (let i = 0; i < data.gaps.length; i++) {
     const expected = data.primes[i + 1] - data.primes[i];
@@ -49,8 +66,8 @@ export function validateNeighborhood(
       discrepancies.push({
         index: i,
         values: [
-          { engine: 'sieve', value: expected.toString() },
-          { engine: 'computed', value: data.gaps[i].toString() },
+          { engine: 'computed-gap', value: expected.toString() },
+          { engine: 'stored-gap', value: data.gaps[i].toString() },
         ],
       });
     }
@@ -63,31 +80,65 @@ export function validateNeighborhood(
       discrepancies.push({
         index: i,
         values: [
-          { engine: 'sieve', value: expected.toString() },
-          { engine: 'computed', value: data.d2[i].toString() },
+          { engine: 'computed-d2', value: expected.toString() },
+          { engine: 'stored-d2', value: data.d2[i].toString() },
         ],
       });
     }
   }
 
-  // Verify all primes are actually prime
+  // Determine which engines to use based on mode
+  const engines: string[] = [];
+
+  if (mode === 'dual') {
+    engines.push('sieve', 'miller-rabin');
+  } else if (mode === 'triple') {
+    engines.push('sieve', 'miller-rabin', 'bpsw');
+  }
+
+  // Cross-validate primality using multiple engines
+  const SIEVE_LIMIT = 10_000_000n;
+
   for (let i = 0; i < data.primes.length; i++) {
-    if (!sieveEngine.isPrime(data.primes[i])) {
+    const p = data.primes[i];
+    const results: { engine: string; isPrime: boolean }[] = [];
+
+    for (const engine of engines) {
+      // Sieve only works for small primes
+      if (engine === 'sieve' && p > SIEVE_LIMIT) {
+        continue;
+      }
+
+      const isPrime = isPrimeWithEngine(p, engine);
+      results.push({ engine, isPrime });
+    }
+
+    // Check if all engines agree
+    const allTrue = results.every((r) => r.isPrime);
+    const allFalse = results.every((r) => !r.isPrime);
+
+    if (!allTrue && !allFalse && results.length > 1) {
+      discrepancies.push({
+        index: i,
+        values: results.map((r) => ({
+          engine: r.engine,
+          value: r.isPrime ? 'prime' : 'not_prime',
+        })),
+      });
+    }
+
+    if (results.length > 0 && !allTrue) {
       discrepancies.push({
         index: i,
         values: [
-          { engine: 'sieve', value: 'not_prime' },
-          { engine: 'claimed', value: data.primes[i].toString() },
+          { engine: 'claimed', value: p.toString() },
+          ...results.map((r) => ({
+            engine: r.engine,
+            value: r.isPrime ? 'prime' : 'not_prime',
+          })),
         ],
       });
     }
-  }
-
-  // For dual/triple mode, we would add more engines here
-  if (mode === 'dual') {
-    engines.push('sieve-verify');
-  } else if (mode === 'triple') {
-    engines.push('sieve-verify', 'sieve-recompute');
   }
 
   return {
@@ -96,4 +147,37 @@ export function validateNeighborhood(
     agreement: discrepancies.length === 0,
     discrepancies: discrepancies.length > 0 ? discrepancies : undefined,
   };
+}
+
+/**
+ * Validate a single prime using all available engines
+ */
+export function validatePrime(n: bigint): {
+  isPrime: boolean;
+  engines: { name: string; result: boolean; supported: boolean }[];
+} {
+  const SIEVE_LIMIT = 10_000_000n;
+
+  const engines = [
+    {
+      name: 'sieve',
+      supported: n <= SIEVE_LIMIT,
+      result: n <= SIEVE_LIMIT ? sieveEngine.isPrime(n) : false,
+    },
+    {
+      name: 'miller-rabin',
+      supported: true,
+      result: millerRabinEngine.isPrime(n),
+    },
+    {
+      name: 'bpsw',
+      supported: true,
+      result: bpswEngine.isPrime(n),
+    },
+  ];
+
+  // Use BPSW as the authoritative answer
+  const isPrime = bpswEngine.isPrime(n);
+
+  return { isPrime, engines };
 }

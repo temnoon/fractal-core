@@ -12,6 +12,9 @@ export interface Env {
   // KV namespace for LPP data (nodes, repeaters, epochs)
   LPP_KV?: KVNamespace;
 
+  // KV namespace for async job queue persistence
+  JOBS_KV?: KVNamespace;
+
   // Environment variables
   ENVIRONMENT?: string;
 

@@ -14,7 +14,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { sieveEngine } from '../services/engines/sieve.js';
+import { primeEngine } from '../services/engines/index.js';
 import { computeNeighborhood, parseComputeOptions } from '../services/neighborhood.js';
 import type { CanonicalRequest } from '../types/api.js';
 
@@ -112,7 +112,7 @@ oeisRoute.get('/primes', (c) => {
   // Get primes
   const primes: bigint[] = [];
   for (let i = 0; i < n; i++) {
-    primes.push(sieveEngine.primeAtIndex(startIdx + i));
+    primes.push(primeEngine.primeAtIndex(startIdx + i));
   }
 
   const startPrime = primes[0];
@@ -170,13 +170,13 @@ oeisRoute.get('/gaps', (c) => {
   const n = Math.min(parseInt(count, 10), 10000);
 
   // Get starting prime
-  const startPrime = sieveEngine.primeAtIndex(startIdx);
+  const startPrime = primeEngine.primeAtIndex(startIdx);
 
   // Compute gaps: g(n) = p(n+1) - p(n)
   const gaps: bigint[] = [];
   for (let i = 0; i < n; i++) {
-    const p1 = sieveEngine.primeAtIndex(startIdx + i);
-    const p2 = sieveEngine.primeAtIndex(startIdx + i + 1);
+    const p1 = primeEngine.primeAtIndex(startIdx + i);
+    const p2 = primeEngine.primeAtIndex(startIdx + i + 1);
     gaps.push(p2 - p1);
   }
 
@@ -248,15 +248,15 @@ oeisRoute.get('/d2', (c) => {
   const n = Math.min(parseInt(count, 10), 10000);
 
   // Get starting prime
-  const startPrime = sieveEngine.primeAtIndex(startIdx);
+  const startPrime = primeEngine.primeAtIndex(startIdx);
 
   // Compute d2 and corresponding ratios: d2(n) = g(n+1) - g(n)
   const d2: bigint[] = [];
   const ratios: { num: bigint; den: bigint }[] = [];
   for (let i = 0; i < n; i++) {
-    const p0 = sieveEngine.primeAtIndex(startIdx + i);
-    const p1 = sieveEngine.primeAtIndex(startIdx + i + 1);
-    const p2 = sieveEngine.primeAtIndex(startIdx + i + 2);
+    const p0 = primeEngine.primeAtIndex(startIdx + i);
+    const p1 = primeEngine.primeAtIndex(startIdx + i + 1);
+    const p2 = primeEngine.primeAtIndex(startIdx + i + 2);
     const g0 = p1 - p0;
     const g1 = p2 - p1;
     const d2val = g1 - g0;
@@ -349,15 +349,15 @@ oeisRoute.get('/ratios', (c) => {
   const n = Math.min(parseInt(count, 10), 10000);
 
   // Get starting prime
-  const startPrime = sieveEngine.primeAtIndex(startIdx);
+  const startPrime = primeEngine.primeAtIndex(startIdx);
 
   // Compute ratios as [numerator, denominator] pairs
   const ratios: { num: bigint; den: bigint }[] = [];
   const d2Values: bigint[] = [];
   for (let i = 0; i < n; i++) {
-    const p0 = sieveEngine.primeAtIndex(startIdx + i);
-    const p1 = sieveEngine.primeAtIndex(startIdx + i + 1);
-    const p2 = sieveEngine.primeAtIndex(startIdx + i + 2);
+    const p0 = primeEngine.primeAtIndex(startIdx + i);
+    const p1 = primeEngine.primeAtIndex(startIdx + i + 1);
+    const p2 = primeEngine.primeAtIndex(startIdx + i + 2);
     const d2 = (p2 - p1) - (p1 - p0);
     const span = p2 - p0;
 
@@ -474,7 +474,7 @@ oeisRoute.get('/neighborhood', (c) => {
   if (format === 'bfile' || format === 'list') {
     const lines: string[] = [
       '# Prime Neighborhood Data',
-      `# Center index: ${data.centerIndex}`,
+      `# Center index: ${data.centerIndex ?? 'unknown (large prime)'}`,
       `# Center prime: ${data.centerPrime}`,
       '',
       '# Primes:',
@@ -496,7 +496,7 @@ oeisRoute.get('/neighborhood', (c) => {
   return c.json({
     greeting: 'Prime Terrain API - Neighborhood in OEIS-compatible format',
     center: {
-      index: data.centerIndex,
+      index: data.centerIndex ?? null,
       prime: data.centerPrime.toString(),
     },
     sequences: {

@@ -23,7 +23,7 @@ export interface PrimeMeasurement {
 
 /** Neighborhood data - computed prime sequences */
 export interface NeighborhoodData {
-  centerIndex: number;
+  centerIndex?: number;
   centerPrime: bigint;
   primes: bigint[];
   indices: number[];

@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Terrain - Flame Fractal Generator</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-card: #0f1419;
+      --border: #1e2633;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #ff6b35;
+      --accent2: #f7c94b;
+      --accent3: #7ee787;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h1 .icon {
+      font-size: 28px;
+    }
+
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 20px;
+      font-size: 14px;
+    }
+
+    nav a:hover {
+      color: var(--text);
+    }
+
+    .intro {
+      background: linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .intro h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+      color: var(--accent);
+    }
+
+    .intro p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .card h3 {
+      margin: 0 0 16px 0;
+      font-size: 16px;
+      color: var(--accent2);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: #ff8555;
+    }
+
+    .btn:disabled {
+      background: var(--muted);
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-card);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .preview-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 20px;
+      font-family: var(--mono);
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .preview-box pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .stat {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--accent2);
+      font-family: var(--mono);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .compatible {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .compatible span {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .loading {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+    }
+
+    .loading.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error {
+      color: #f85149;
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.4);
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .error.active {
+      display: block;
+    }
+
+    .mapping-info {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(255, 107, 53, 0.1);
+      border: 1px solid rgba(255, 107, 53, 0.3);
+      border-radius: 8px;
+    }
+
+    .mapping-info h4 {
+      margin: 0 0 12px 0;
+      color: var(--accent);
+      font-size: 14px;
+    }
+
+    .mapping-info ul {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><span class="icon">&#x1F525;</span> Flame Fractal Generator</h1>
+      <nav>
+        <a href="index.html">Explorer</a>
+        <a href="player.html">Player</a>
+        <a href="visualizations.html">Visualizations</a>
+        <a href="simulation.html">Simulation</a>
+      </nav>
+    </header>
+
+    <div class="intro">
+      <h2>Generate Flame Fractals from Prime Terrain</h2>
+      <p>
+        Transform prime number second differences and ratios into stunning flame fractal art.
+        Download genome files compatible with Apophysis, Fractorium, flam3, and Chaotica.
+        Each prime neighborhood produces a unique, deterministic fractal based on the mathematical
+        structure of prime gaps.
+      </p>
+      <div class="compatible">
+        <span>Apophysis 7X</span>
+        <span>Fractorium</span>
+        <span>flam3</span>
+        <span>Chaotica</span>
+        <span>Electric Sheep</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Configuration</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="n">Prime Index or Value</label>
+          <input type="text" id="n" value="1000" placeholder="e.g., 1000">
+        </div>
+        <div class="form-group">
+          <label for="n_type">Input Type</label>
+          <select id="n_type">
+            <option value="index">By Index (p(n))</option>
+            <option value="value">By Value (next prime >= n)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="k">Neighborhood Size (k)</label>
+          <input type="number" id="k" value="20" min="5" max="100">
+        </div>
+        <div class="form-group">
+          <label for="variations">Variation Set</label>
+          <select id="variations">
+            <option value="classic">Classic (traditional flames)</option>
+            <option value="modern">Modern (newer variations)</option>
+            <option value="all">All Available</option>
+            <option value="minimal">Minimal (simple)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="color_mode">Color Mode</label>
+          <select id="color_mode">
+            <option value="sequence">Sequence (from d2/ratios)</option>
+            <option value="gradient">Gradient (smooth)</option>
+            <option value="monochrome">Monochrome (blue)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="quality">Render Quality</label>
+          <input type="number" id="quality" value="500" min="10" max="10000">
+        </div>
+        <div class="form-group">
+          <label for="width">Width</label>
+          <input type="number" id="width" value="1920" min="100" max="8192">
+        </div>
+        <div class="form-group">
+          <label for="height">Height</label>
+          <input type="number" id="height" value="1080" min="100" max="8192">
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn" onclick="generateFlame()">Download .flame</button>
+        <button class="btn" onclick="playInBrowser()" style="background: #7ee787; color: #000;">Play in Browser</button>
+      </div>
+      <div style="margin-top: 8px;">
+        <button class="btn btn-secondary" onclick="previewFlame()">Preview Data</button>
+      </div>
+
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <span>Generating flame genome...</span>
+      </div>
+
+      <div class="error" id="error"></div>
+    </div>
+
+    <div class="card" id="preview-card" style="display: none;">
+      <h3>Preview</h3>
+      <div class="stats" id="stats"></div>
+      <div class="preview-box">
+        <pre id="preview-content"></pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>How It Works</h3>
+      <div class="mapping-info">
+        <h4>Prime Data to Flame Parameters Mapping</h4>
+        <ul>
+          <li><strong>Second Differences (d2)</strong> determine variation weights, rotation angles, and scale factors</li>
+          <li><strong>Second Ratios (r)</strong> in [-1, 1] map to color positions and blend weights</li>
+          <li><strong>Each d2/ratio pair</strong> generates one xform (transform) in the flame</li>
+          <li><strong>Center prime</strong> seeds the random number generator for reproducibility</li>
+          <li><strong>Color palette</strong> is generated from the mathematical structure of the sequence</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        Prime Terrain Flame Generator |
+        <a href="https://api.fractal-core.com/api/v1/flame/info" target="_blank">API Documentation</a> |
+        <a href="https://github.com/scottdraves/flam3" target="_blank">flam3 on GitHub</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    const API = 'https://api.fractal-core.com/api/v1';
+
+    function showLoading(show) {
+      document.getElementById('loading').classList.toggle('active', show);
+    }
+
+    function showError(message) {
+      const el = document.getElementById('error');
+      if (message) {
+        el.textContent = message;
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    }
+
+    function getParams() {
+      return {
+        n: document.getElementById('n').value,
+        n_type: document.getElementById('n_type').value,
+        k: document.getElementById('k').value,
+        variations: document.getElementById('variations').value,
+        color_mode: document.getElementById('color_mode').value,
+        quality: document.getElementById('quality').value,
+        width: document.getElementById('width').value,
+        height: document.getElementById('height').value,
+      };
+    }
+
+    async function previewFlame() {
+      showError(null);
+      showLoading(true);
+
+      const params = getParams();
+      const maxIndex = 500000;
+      if (params.n_type === 'index') {
+        const nNum = Number(params.n);
+        if (Number.isFinite(nNum) && nNum > maxIndex) {
+          showError(`Index ${nNum} is likely too large for live preview. Try <= ${maxIndex}, or use async jobs.`);
+          showLoading(false);
+          return;
+        }
+      }
+      const url = `${API}/flame/preview?n=${params.n}&n_type=${params.n_type}&k=${params.k}`;
+
+      try {
+        const res = await fetch(url, {
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Show preview card
+        document.getElementById('preview-card').style.display = 'block';
+
+        // Populate stats
+        const statsHtml = `
+          <div class="stat">
+            <div class="stat-value">${data.center_prime}</div>
+            <div class="stat-label">Center Prime</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${data.center_index}</div>
+            <div class="stat-label">Prime Index</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${data.data.d2_count}</div>
+            <div class="stat-label">Transforms</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${data.data.d2_range.min} to ${data.data.d2_range.max}</div>
+            <div class="stat-label">d2 Range</div>
+          </div>
+        `;
+        document.getElementById('stats').innerHTML = statsHtml;
+
+        // Populate preview content
+        const previewContent = `Prime Neighborhood: p(${data.center_index}) = ${data.center_prime}
+Primes: ${data.data.first_prime} to ${data.data.last_prime} (${data.data.primes_count} total)
+
+Second Differences (d2):
+${data.data.d2_sample.join(', ')}${data.data.d2_count > 10 ? '...' : ''}
+
+Ratios (d2/span):
+${data.data.ratios_sample.map(r => `${r.num}/${r.den} = ${r.decimal}`).join('\n')}
+
+Download URL: ${data.download_url}`;
+
+        document.getElementById('preview-content').textContent = previewContent;
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    function playInBrowser() {
+      const params = getParams();
+      const queryString = Object.entries(params)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&');
+      window.location.href = `player.html?${queryString}`;
+    }
+
+    async function generateFlame() {
+      showError(null);
+      showLoading(true);
+
+      const params = getParams();
+      const maxIndex = 500000;
+      if (params.n_type === 'index') {
+        const nNum = Number(params.n);
+        if (Number.isFinite(nNum) && nNum > maxIndex) {
+          showError(`Index ${nNum} is likely too large for live generation. Try <= ${maxIndex}, or use async jobs.`);
+          showLoading(false);
+          return;
+        }
+      }
+      const queryString = Object.entries(params)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&');
+      const url = `${API}/flame?${queryString}`;
+
+      try {
+        const res = await fetch(url, {
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to generate flame');
+        }
+
+        // Get filename from Content-Disposition header
+        const disposition = res.headers.get('Content-Disposition');
+        let filename = `prime_terrain_${params.n}.flame`;
+        if (disposition) {
+          const match = disposition.match(/filename="([^"]+)"/);
+          if (match) filename = match[1];
+        }
+
+        // Download the file
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        showLoading(false);
+      }
+    }
+  </script>
+</body>
+</html>

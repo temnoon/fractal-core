@@ -8,7 +8,7 @@
  *   - Second ratio: r = d2 / (p_{n+1} - p_{n-1}), always in [-1, 1]
  */
 
-import { sieveEngine } from './engines/sieve.js';
+import { primeEngine } from './engines/index.js';
 import type { Rational, NeighborhoodData, NType, NeighborhoodMode, IncludeField } from '../types/neighborhood.js';
 import type { CanonicalRequest, NeighborhoodResult } from '../types/api.js';
 
@@ -62,18 +62,18 @@ function rational(num: bigint, den: bigint): Rational {
 export function computeNeighborhood(options: ComputeOptions): NeighborhoodData {
   const { n, nType, mode, k, w, include } = options;
 
-  let centerIndex: number;
+  let centerIndex: number | undefined;
   let centerPrime: bigint;
 
   // Resolve center based on n_type
   if (nType === 'index') {
     centerIndex = Number(n);
-    centerPrime = sieveEngine.primeAtIndex(centerIndex);
+    centerPrime = primeEngine.primeAtIndex(centerIndex);
   } else {
     // n_type === 'value': find next prime >= n (not closest)
     // This ensures we always move forward from the given value
-    const next = sieveEngine.nextPrime(n);
-    centerIndex = next.index;
+    const next = primeEngine.nextPrime(n);
+    centerIndex = next.index; // undefined for primes beyond sieve range
     centerPrime = next.prime;
   }
 
@@ -83,35 +83,54 @@ export function computeNeighborhood(options: ComputeOptions): NeighborhoodData {
   // Get primes based on mode
   if (mode === 'count') {
     const kValue = k ?? 10;
-    const result = sieveEngine.primesAroundIndex(centerIndex, kValue);
-    primes = result.primes;
-    indices = result.indices;
+    if (centerIndex !== undefined) {
+      // Have a valid index (within sieve range) — use index-based lookup
+      const result = primeEngine.primesAroundIndex(centerIndex, kValue);
+      primes = result.primes;
+      indices = result.indices;
+    } else {
+      // Large prime beyond sieve range — use value-based lookup with BPSW
+      const result = primeEngine.primesAroundValue(centerPrime, kValue);
+      primes = result.primes;
+      indices = result.indices ?? [];
+    }
   } else {
     // mode === 'span'
     const wValue = w ?? 100n;
-    const result = sieveEngine.primesAroundValue(centerPrime, wValue);
+    const result = primeEngine.primesAroundValue(centerPrime, Number(wValue));
     primes = result.primes;
-    indices = result.indices;
+    indices = result.indices ?? [];
   }
+
+  // Only compute sequences the caller requested
+  const inc = new Set(include);
+  const needGaps = inc.has('gaps') || inc.has('d2') || inc.has('ratio');
+  const needD2 = inc.has('d2') || inc.has('ratio');
+  const needRatio = inc.has('ratio');
 
   // Compute gaps: g[i] = p[i+1] - p[i]
   const gaps: bigint[] = [];
-  for (let i = 0; i < primes.length - 1; i++) {
-    gaps.push(primes[i + 1] - primes[i]);
+  if (needGaps) {
+    for (let i = 0; i < primes.length - 1; i++) {
+      gaps.push(primes[i + 1] - primes[i]);
+    }
   }
 
-  // Compute second differences: d2[i] = g[i+1] - g[i] = (p[i+2] - p[i+1]) - (p[i+1] - p[i])
+  // Compute second differences: d2[i] = g[i+1] - g[i]
   const d2: bigint[] = [];
-  for (let i = 0; i < gaps.length - 1; i++) {
-    d2.push(gaps[i + 1] - gaps[i]);
+  if (needD2) {
+    for (let i = 0; i < gaps.length - 1; i++) {
+      d2.push(gaps[i + 1] - gaps[i]);
+    }
   }
 
   // Compute ratios: r[i] = d2[i] / (p[i+2] - p[i])
-  // Always in [-1, 1] since |d2| <= span
   const ratios: Rational[] = [];
-  for (let i = 0; i < d2.length; i++) {
-    const span = primes[i + 2] - primes[i];
-    ratios.push(rational(d2[i], span));
+  if (needRatio) {
+    for (let i = 0; i < d2.length; i++) {
+      const span = primes[i + 2] - primes[i];
+      ratios.push(rational(d2[i], span));
+    }
   }
 
   return {
