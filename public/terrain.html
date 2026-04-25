@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Terrain — Sleek Explorer</title>
+  <link rel="stylesheet" href="design-tokens.css">
+  <style>
+    /* ── Layout ────────────────────────────────────────────────────────── */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      transition: background var(--dur-med) var(--ease-out), color var(--dur-med) var(--ease-out);
+    }
+    body[data-world="console"] { background: var(--console-bg); color: var(--console-text); }
+    body[data-world="paper"]   { background: var(--paper-bg); color: var(--paper-fg); }
+    body[data-world="parchment"] { background: var(--parch-page); color: var(--sepia); }
+
+    .shell { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
+
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 16px; }
+    .brand { display: flex; align-items: baseline; gap: 12px; }
+    .brand h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.01em; }
+    .brand .tag { font-size: 0.85rem; opacity: 0.6; font-style: italic; }
+
+    .nav a, .theme button {
+      color: inherit;
+      text-decoration: none;
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 4px 10px;
+      margin-right: 6px;
+      border-radius: var(--radius-pill);
+    }
+    body[data-world="console"] .nav a, body[data-world="console"] .theme button { border: 1px solid var(--console-border); background: var(--console-bg-card); }
+    body[data-world="paper"] .nav a, body[data-world="paper"] .theme button { border: 1px solid var(--paper-border); background: var(--paper-surface-1); }
+    body[data-world="parchment"] .nav a, body[data-world="parchment"] .theme button { border: 1px solid var(--brown-light); background: var(--parchment); color: var(--sepia); }
+    .theme button { cursor: pointer; }
+    .theme button.active { font-weight: 600; }
+    body[data-world="console"] .theme button.active { background: var(--console-accent); color: var(--console-bg); }
+    body[data-world="paper"] .theme button.active { background: var(--paper-link); color: white; }
+    body[data-world="parchment"] .theme button.active { background: var(--burgundy); color: var(--parchment); }
+
+    /* ── Form ─────────────────────────────────────────────────────────── */
+    .panel {
+      margin-top: 18px;
+      padding: 18px 22px;
+      border-radius: var(--radius-xl);
+    }
+    body[data-world="console"] .panel { background: var(--console-bg-card); border: 1px solid var(--console-border); }
+    body[data-world="paper"] .panel { background: var(--paper-surface-2); border: 1px solid var(--paper-border-2); }
+    body[data-world="parchment"] .panel { background: var(--parchment); border: 1px solid var(--brown-light); }
+
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+    .row label { font-size: 0.9rem; display: flex; gap: 6px; align-items: center; }
+    .row input[type="text"], .row input[type="number"], .row select {
+      font: inherit;
+      padding: 5px 9px;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: inherit;
+    }
+    body[data-world="console"] .row input, body[data-world="console"] .row select { border: 1px solid var(--console-border); background: var(--console-bg-deep); color: var(--console-text); }
+    body[data-world="paper"] .row input, body[data-world="paper"] .row select { border: 1px solid var(--paper-border); }
+    body[data-world="parchment"] .row input, body[data-world="parchment"] .row select { border: 1px solid var(--brown-light); background: var(--parchment-dark); color: var(--sepia); }
+
+    button.primary {
+      font: inherit;
+      padding: 6px 18px;
+      border-radius: var(--radius-md);
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    body[data-world="console"] button.primary { background: var(--console-accent); color: var(--console-bg); }
+    body[data-world="paper"] button.primary { background: var(--paper-link); color: white; }
+    body[data-world="parchment"] button.primary { background: var(--burgundy); color: var(--parchment); }
+
+    .meta { font-size: 0.82rem; opacity: 0.65; }
+    .legend-link { font-size: 0.82rem; opacity: 0.7; }
+    .legend-link a { color: inherit; }
+
+    /* ── Result ───────────────────────────────────────────────────────── */
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 20px; }
+    .card {
+      padding: 14px 16px;
+      border-radius: var(--radius-lg);
+    }
+    body[data-world="console"] .card { background: var(--console-bg-card); border: 1px solid var(--console-border); }
+    body[data-world="paper"] .card { background: var(--paper-surface-2); border: 1px solid var(--paper-border-2); }
+    body[data-world="parchment"] .card { background: var(--parchment); border: 1px solid var(--brown-light); }
+    .card h3 { margin: 0 0 10px; font-size: 0.95rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; }
+    .stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 0.92rem; }
+    .stat .v { font-family: var(--font-console-mono); font-weight: 500; }
+    .pattern-list { font-size: 0.88rem; }
+    .pattern-list li { margin: 2px 0; }
+    .seq-data { font-family: var(--font-console-mono); font-size: 0.82rem; word-break: break-all; opacity: 0.85; }
+
+    .progress {
+      height: 8px;
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    body[data-world="console"] .progress { background: var(--console-bg-deep); }
+    body[data-world="paper"] .progress { background: var(--paper-surface-1); }
+    body[data-world="parchment"] .progress { background: var(--parchment-dark); }
+    .progress-bar { height: 100%; background: var(--bg-progress); transition: width 0.4s var(--ease-out); }
+
+    a.oeis { color: var(--console-accent); text-decoration: none; }
+    body[data-world="paper"] a.oeis { color: var(--paper-link); }
+    body[data-world="parchment"] a.oeis { color: var(--burgundy); }
+    a.oeis:hover { text-decoration: underline; }
+
+    .err { color: var(--console-error); padding: 10px; border: 1px solid var(--console-error); border-radius: var(--radius-md); }
+    body[data-world="paper"] .err { color: var(--paper-error); border-color: var(--paper-error-bd); background: var(--paper-error-bg); }
+
+    table.simple { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    table.simple th, table.simple td { padding: 4px 8px; text-align: left; border-bottom: 1px dashed currentColor; opacity: 0.95; }
+    table.simple th { opacity: 0.6; font-weight: 600; }
+  </style>
+</head>
+<body data-world="console">
+  <div class="shell">
+    <div class="topbar">
+      <div class="brand">
+        <h1>Prime Terrain</h1>
+        <span class="tag">— sleek explorer</span>
+      </div>
+      <div>
+        <span class="nav">
+          <a href="index.html">Classic (OEIS)</a>
+          <a href="glossary.html">Glossary</a>
+        </span>
+        <span class="theme" id="themeSwitch">
+          <button data-theme="console">Console</button>
+          <button data-theme="paper">Paper</button>
+          <button data-theme="parchment">Parchment</button>
+        </span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <form id="searchForm">
+        <div class="row">
+          <label>Anchor n
+            <input type="text" id="queryN" value="100" size="14">
+          </label>
+          <label>
+            <select id="queryType">
+              <option value="index" selected>by index</option>
+              <option value="value">by value</option>
+            </select>
+          </label>
+          <label>k each side
+            <input type="number" id="queryK" value="20" min="1" max="100000" size="6">
+          </label>
+          <label>mod
+            <input type="number" id="queryMod" value="4" min="2" max="1000" size="4">
+          </label>
+          <label><input type="checkbox" id="queryStats" checked> stats summary</label>
+        </div>
+        <div class="row">
+          <label class="meta">Show:</label>
+          <label><input type="checkbox" id="ntMerit" checked> Merit/Cramér</label>
+          <label><input type="checkbox" id="ntResidue" checked> Residue race</label>
+          <label><input type="checkbox" id="ntTheta" checked> θ(x)</label>
+          <label><input type="checkbox" id="ntConstellations" checked> Constellations</label>
+          <button type="submit" class="primary">Compute</button>
+        </div>
+        <div class="row">
+          <span class="legend-link">Confused by a term? See the <a href="glossary.html">glossary</a>.</span>
+        </div>
+      </form>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const API = 'https://api.fractal-core.com/api/v1';
+
+    /* ── Theme switcher ───────────────────────────────────────────────── */
+    const themeSwitch = document.getElementById('themeSwitch');
+    function setTheme(t) {
+      document.body.dataset.world = t;
+      localStorage.setItem('terrain_theme', t);
+      themeSwitch.querySelectorAll('button').forEach(b =>
+        b.classList.toggle('active', b.dataset.theme === t)
+      );
+    }
+    themeSwitch.addEventListener('click', e => {
+      const t = e.target.dataset.theme;
+      if (t) setTheme(t);
+    });
+    setTheme(localStorage.getItem('terrain_theme') || 'console');
+
+    /* ── Search ───────────────────────────────────────────────────────── */
+    document.getElementById('searchForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const n = document.getElementById('queryN').value.trim();
+      const nType = document.getElementById('queryType').value;
+      const k = document.getElementById('queryK').value;
+      const modulus = document.getElementById('queryMod').value;
+      const statsOnly = document.getElementById('queryStats').checked;
+
+      const include = new Set(['gaps', 'd2', 'ratio']);
+      if (document.getElementById('ntMerit').checked) { include.add('merit'); include.add('cramer'); }
+      if (document.getElementById('ntResidue').checked) { include.add('residue'); if (statsOnly) include.add('residue_running'); }
+      if (document.getElementById('ntTheta').checked) include.add('theta');
+      if (document.getElementById('ntConstellations').checked) include.add('constellations');
+
+      const params = new URLSearchParams();
+      params.set('n', n);
+      params.set('n_type', nType);
+      params.set('k', k);
+      params.set('include', Array.from(include).join(','));
+      params.set('modulus', modulus);
+      if (statsOnly) { params.set('stats_only', '1'); params.set('top_n', '10'); }
+
+      const results = document.getElementById('results');
+      results.innerHTML = '<div class="card"><div class="meta">computing…</div></div>';
+
+      try {
+        const res = await fetch(`${API}/neighborhood?${params}`);
+        const data = await res.json();
+        if (res.status === 202 && data.job_id) { pollJob(data.job_id, n, nType, k); return; }
+        if (data.error) { results.innerHTML = `<div class="err">${data.error}</div>`; return; }
+        results.innerHTML = render(data, n, nType, k, parseInt(res.headers.get('x-cpu-time-ms') || '0'));
+      } catch (err) {
+        results.innerHTML = `<div class="err">${err.message}</div>`;
+      }
+    });
+
+    async function pollJob(jobId, n, nType, k) {
+      const results = document.getElementById('results');
+      const pollUrl = `${API}/jobs/${jobId}`;
+      const resultUrl = `${API}/jobs/${jobId}/result`;
+      const target = Number(k) * 2 + 1;
+      async function check() {
+        try {
+          const res = await fetch(pollUrl);
+          const data = await res.json();
+          if (data.status === 'completed') {
+            const rRes = await fetch(resultUrl);
+            const rData = await rRes.json();
+            results.innerHTML = render(rData, n, nType, k, parseInt(rRes.headers.get('x-cpu-time-ms') || '0'));
+            return;
+          }
+          if (data.status === 'failed') {
+            results.innerHTML = `<div class="err">Job failed: ${data.error || 'unknown'}</div>`;
+            return;
+          }
+          const pct = Math.round(data.progress ?? 0);
+          const found = (data.primes_found ?? 0).toLocaleString();
+          const phase = data.phase ? `(${data.phase})` : '';
+          results.innerHTML = `
+            <div class="card">
+              <h3>Computing…</h3>
+              <div class="progress"><div class="progress-bar" style="width:${pct}%"></div></div>
+              <div class="meta">${found} / ${target.toLocaleString()} primes ${phase} — ${pct}% — chunks ${data.chunks_processed ?? 0}</div>
+            </div>`;
+          setTimeout(check, 2000);
+        } catch (err) {
+          results.innerHTML = `<div class="err">${err.message}</div>`;
+        }
+      }
+      check();
+    }
+
+    /* ── Renderers ────────────────────────────────────────────────────── */
+    function render(data, n, nType, k, cpuMs) {
+      const r = data.result;
+      if (!r) return `<div class="err">missing result</div>`;
+      const stats = r.stats || {};
+      let html = `<h2 style="margin-top:24px">Neighborhood around ${nType === 'index' ? 'p(' + n + ')' : n} = ${r.center_prime}</h2>`;
+      html += '<div class="result-grid">';
+
+      // Gaps card (mini histogram)
+      if (stats.gaps || r.gaps) {
+        html += card('Gaps', '<a class="oeis" href="https://oeis.org/A001223" target="_blank">A001223</a>',
+          stats.gaps ? freqTable(stats.gaps) : seqLine(r.gaps));
+      }
+
+      // Second differences
+      if (stats.d2 || r.d2) {
+        html += card('Second differences', '<a class="oeis" href="https://oeis.org/A036263" target="_blank">A036263</a>',
+          stats.d2 ? freqTable(stats.d2) : seqLine(r.d2));
+      }
+
+      // Ratios (novel — link to glossary, not OEIS)
+      if (stats.ratio || r.ratio) {
+        html += card('Second ratios', '<a class="oeis" href="glossary.html#ratio">novel</a>',
+          stats.ratio ? freqTable(stats.ratio) : seqLine((r.ratio || []).map(x => x.num + '/' + x.den)));
+      }
+
+      // Merit
+      if (stats.merit) {
+        html += card('Gap merit', '<a class="oeis" href="glossary.html#merit">defn</a>', meritTable(stats.merit));
+      } else if (r.max_merit) {
+        html += card('Gap merit', '<a class="oeis" href="glossary.html#merit">defn</a>',
+          `<div class="stat"><span>max</span><span class="v">${r.max_merit.value.toFixed(3)}</span></div>
+           <div class="stat"><span>at gap idx</span><span class="v">${r.max_merit.index}</span></div>`);
+      }
+
+      if (stats.cramer) {
+        html += card('Cramér ratio', '<a class="oeis" href="glossary.html#cramer">defn</a>', meritTable(stats.cramer));
+      } else if (r.max_cramer) {
+        html += card('Cramér ratio', '<a class="oeis" href="glossary.html#cramer">defn</a>',
+          `<div class="stat"><span>max</span><span class="v">${r.max_cramer.value.toFixed(4)}</span></div>
+           <div class="stat"><span>at gap idx</span><span class="v">${r.max_cramer.index}</span></div>`);
+      }
+
+      // Residue race
+      if (stats.residue) {
+        html += card(`Residue race · mod ${stats.residue.modulus}`, '<a class="oeis" href="https://oeis.org/A007350" target="_blank">A007350</a>',
+          residueStats(stats.residue));
+      } else if (r.residue_race) {
+        html += card(`Residue race · mod ${r.residue_race.modulus}`, '<a class="oeis" href="https://oeis.org/A007350" target="_blank">A007350</a>',
+          residueLite(r.residue_race));
+      }
+
+      // Theta
+      if (stats.theta) {
+        html += card('Chebyshev θ(x)', '<a class="oeis" href="https://oeis.org/A083409" target="_blank">A083409</a>', thetaStats(stats.theta));
+      } else if (r.theta) {
+        html += card('Chebyshev θ(x)', '<a class="oeis" href="https://oeis.org/A083409" target="_blank">A083409</a>',
+          `<div class="stat"><span>total</span><span class="v">${r.theta.total.toFixed(3)}</span></div>
+           <div class="stat"><span>θ − x</span><span class="v">${r.theta.deviation.toFixed(3)}</span></div>`);
+      }
+
+      // Constellations
+      if (stats.constellations) {
+        html += card('Constellations', '<a class="oeis" href="glossary.html#constellation">patterns</a>', constellationStats(stats.constellations));
+      } else if (r.constellations) {
+        html += card('Constellations', '<a class="oeis" href="glossary.html#constellation">patterns</a>', constellationLite(r.constellations));
+      }
+
+      html += '</div>';
+      html += `<div class="meta" style="margin-top:14px">CPU: ${cpuMs} ms · engine: ${data.request?.engine || 'sieve'} · <a href="glossary.html">glossary</a></div>`;
+      return html;
+    }
+
+    function card(title, badge, body) {
+      return `<div class="card"><h3>${title} ${badge}</h3>${body}</div>`;
+    }
+    function seqLine(arr) { return `<div class="seq-data">${(arr || []).slice(0, 40).join(', ')}${(arr || []).length > 40 ? '…' : ''}</div>`; }
+    function freqTable(rows) {
+      let h = '<table class="simple"><tr><th>val</th><th>cnt</th><th>%</th></tr>';
+      for (const r of rows.slice(0, 8)) h += `<tr><td>${r.value}</td><td>${r.count}</td><td>${r.pct}</td></tr>`;
+      h += '</table>';
+      return h;
+    }
+    function meritTable(s) {
+      let h = `<div class="stat"><span>max</span><span class="v">${s.max.value.toFixed(3)}</span></div>`;
+      h += `<div class="stat"><span>mean</span><span class="v">${(s.mean ?? 0).toFixed(3)}</span></div>`;
+      if (s.top && s.top.length) {
+        h += '<table class="simple"><tr><th>#</th><th>p<sub>n</sub></th><th>g</th><th>M</th></tr>';
+        for (const e of s.top.slice(0, 5)) h += `<tr><td>${e.rank}</td><td>${shortBig(e.p)}</td><td>${e.gap}</td><td>${e.merit.toFixed(3)}</td></tr>`;
+        h += '</table>';
+      }
+      return h;
+    }
+    function residueStats(s) {
+      let h = '<table class="simple"><tr><th>res</th><th>count</th><th>%</th>';
+      if (s.dominance) h += '<th>led</th>';
+      h += '</tr>';
+      for (const k of Object.keys(s.counts).sort((a, b) => Number(a) - Number(b))) {
+        const star = k === s.leader ? ' ★' : '';
+        h += `<tr><td>[${k}]${star}</td><td>${s.counts[k]}</td><td>${s.pct?.[k] ?? 0}</td>`;
+        if (s.dominance) h += `<td>${s.dominance[k] ?? 0}%</td>`;
+        h += '</tr>';
+      }
+      h += '</table>';
+      h += `<div class="stat"><span>leader</span><span class="v">[${s.leader}]</span></div>`;
+      if (typeof s.lead_changes === 'number') h += `<div class="stat"><span>lead changes</span><span class="v">${s.lead_changes}</span></div>`;
+      return h;
+    }
+    function residueLite(rr) {
+      let h = '<table class="simple"><tr><th>res</th><th>count</th></tr>';
+      for (const k of Object.keys(rr.counts).sort((a, b) => Number(a) - Number(b))) {
+        const star = k === rr.leader ? ' ★' : '';
+        h += `<tr><td>[${k}]${star}</td><td>${rr.counts[k]}</td></tr>`;
+      }
+      h += '</table>';
+      h += `<div class="stat"><span>leader</span><span class="v">[${rr.leader}]</span></div>`;
+      return h;
+    }
+    function thetaStats(s) {
+      let h = '';
+      h += `<div class="stat"><span>total</span><span class="v">${s.total.toFixed(2)}</span></div>`;
+      h += `<div class="stat"><span>θ − x</span><span class="v">${s.deviation.toFixed(2)}</span></div>`;
+      if (typeof s.deviation_normalized === 'number')
+        h += `<div class="stat"><span>(θ − x)/√x</span><span class="v">${s.deviation_normalized.toFixed(3)}</span></div>`;
+      h += `<div class="stat"><span>n primes</span><span class="v">${s.n_primes}</span></div>`;
+      if (!s.starts_at_two) h += '<div class="meta" style="margin-top:6px">partial sum (n_first ≠ 2)</div>';
+      return h;
+    }
+    function constellationStats(arr) {
+      if (!arr.length) return '<div class="meta">none in window</div>';
+      let h = '<table class="simple"><tr><th>pattern</th><th>count</th><th>OEIS</th></tr>';
+      for (const c of arr) {
+        const oeis = c.oeis ? `<a class="oeis" href="https://oeis.org/${c.oeis}" target="_blank">${c.oeis}</a>` : '—';
+        h += `<tr><td>${c.pattern_name}</td><td>${c.count}</td><td>${oeis}</td></tr>`;
+      }
+      h += '</table>';
+      return h;
+    }
+    function constellationLite(arr) {
+      if (!arr.length) return '<div class="meta">none in window</div>';
+      let h = '<ul class="pattern-list">';
+      for (const c of arr) h += `<li>${c.pattern_name} [${c.signature.join(',')}] — ${c.positions.length} match${c.positions.length === 1 ? '' : 'es'}</li>`;
+      h += '</ul>';
+      return h;
+    }
+    function shortBig(s) { return s.length > 12 ? s.slice(0, 10) + '…' : s; }
+
+    /* ── First load ───────────────────────────────────────────────────── */
+    document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+  </script>
+</body>
+</html>

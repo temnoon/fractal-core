@@ -170,7 +170,7 @@
           </select>
         </p>
         <p>
-          <label>Neighbors k=<input type="text" id="queryK" value="10" size="4"></label>
+          <label>Neighbors k=<input type="text" id="queryK" value="10" size="4"> <span class="meta">(each side; total = 2k+1 primes)</span></label>
           <label>
             Include:
             <select id="queryInclude">
@@ -255,7 +255,7 @@
       <a href="#" onclick="showSequence('primes')">A000040 (Primes)</a>
       <a href="#" onclick="showSequence('gaps')">A001223 (Gaps)</a>
       <a href="#" onclick="showSequence('d2')">A036263 (Second diff)</a>
-      <a href="#" onclick="showSequence('ratios')">Ratios (novel)</a>
+      <a href="glossary.html#ratio">Ratios (novel)</a>
     </div>
     <div class="links" style="margin-top:6px;">
       <b>Number-theory references:</b>
@@ -270,6 +270,8 @@
 
     <div class="footer">
       <div class="links">
+        <a href="terrain.html">Sleek Terrain</a>
+        <a href="glossary.html">Glossary</a>
         <a href="visualizations.html">Data Visualizations</a>
         <a href="simulation.html">Physics Simulation</a>
         <a href="flames.html">Flame Fractals</a>
@@ -427,7 +429,11 @@
           const primesFound = data.primes_found ?? 0;
           const phase = data.phase;
           const status = data.status || 'running';
-          const targetPrimes = Number(k) * 2;
+          // k is half-window. Total primes loaded = 2k each-side walks + the
+          // center prime. (At small starting values, e.g. n=2, the backward
+          // walk exhausts and the realized total is k + 1, so the progress
+          // bar will plateau near 50% — correct, not stuck.)
+          const targetPrimes = Number(k) * 2 + 1;
 
           // Build progress bar
           const pct = Math.round(progress);
@@ -441,7 +447,7 @@
 
           // Primes found detail
           const primesDetail = targetPrimes > 0
-            ? `Primes found: ${primesFound.toLocaleString()} / ${targetPrimes.toLocaleString()}`
+            ? `Primes found: ${primesFound.toLocaleString()} / ${targetPrimes.toLocaleString()} (k=${Number(k).toLocaleString()} each side + center)`
             : `Primes found: ${primesFound.toLocaleString()}`;
 
           const note = Number(k) >= 100000 ? 'Large requests can take several minutes. Leave this tab open.' : 'Large request in progress.';

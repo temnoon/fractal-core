@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Terrain — Glossary</title>
+  <link rel="stylesheet" href="design-tokens.css">
+  <style>
+    body {
+      font-family: var(--font-paper-serif);
+      background: var(--paper-bg);
+      color: var(--paper-fg);
+      line-height: 1.55;
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.25em;
+      letter-spacing: -0.01em;
+    }
+    h1 + p { color: var(--paper-fg-muted); margin-top: 0; }
+    h2 {
+      margin-top: 2.2em;
+      padding-bottom: 0.25em;
+      border-bottom: 1px solid var(--paper-border-2);
+      font-size: 1.25rem;
+    }
+    h3 {
+      margin-top: 1.6em;
+      font-size: 1.05rem;
+    }
+    .term {
+      margin: 1.2em 0;
+      padding-left: 14px;
+      border-left: 3px solid var(--paper-border);
+    }
+    .term .name { font-weight: 600; font-size: 1.05rem; }
+    .term .symbol { font-family: var(--font-paper-mono); color: var(--paper-fg-subtle); margin-left: 6px; }
+    .term .formula {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--paper-surface-1);
+      border: 1px solid var(--paper-border-3);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-paper-mono);
+      margin: 4px 0;
+    }
+    .term p { margin: 0.5em 0; }
+    .term .why { color: var(--paper-fg-subtle); font-style: italic; }
+    .oeis a { color: var(--paper-link); text-decoration: none; }
+    .oeis a:hover { text-decoration: underline; }
+    .novel { color: var(--paper-error); font-style: italic; }
+    .toc {
+      background: var(--paper-surface-2);
+      border: 1px solid var(--paper-border-3);
+      padding: 14px 20px;
+      margin: 1.5em 0;
+      border-radius: var(--radius-sm);
+    }
+    .toc ul { columns: 2; column-gap: 32px; padding-left: 18px; margin: 0.4em 0; }
+    .toc a { color: var(--paper-link); text-decoration: none; font-size: 0.95em; }
+    .toc a:hover { text-decoration: underline; }
+    code { font-family: var(--font-paper-mono); font-size: 0.92em; background: var(--paper-surface-1); padding: 1px 4px; }
+    .nav { font-size: 0.92em; padding-bottom: 16px; border-bottom: 1px solid var(--paper-border-2); }
+    .nav a { color: var(--paper-link); margin-right: 14px; }
+    .footer { margin-top: 4em; padding-top: 1em; border-top: 1px solid var(--paper-border-2); font-size: 0.88em; color: var(--paper-fg-muted); }
+    .footer a { color: var(--paper-link-2); margin-right: 12px; }
+  </style>
+</head>
+<body data-world="paper">
+  <div class="nav">
+    <a href="index.html">← Prime Terrain Explorer</a>
+    <a href="terrain.html">Sleek Terrain</a>
+    <a href="visualizations.html">Visualizations</a>
+  </div>
+
+  <h1>Glossary &amp; Sequence Reference</h1>
+  <p>Definitions for every term and sequence used by the Prime Terrain Explorer, with cross-references to OEIS where applicable. Sequences marked <span class="novel">novel</span> are introduced by this site.</p>
+
+  <div class="toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#core">Core sequences</a></li>
+      <li><a href="#derived">Derived measures</a></li>
+      <li><a href="#races">Residue races</a></li>
+      <li><a href="#theta">Chebyshev θ(x)</a></li>
+      <li><a href="#constellations">Constellations</a></li>
+      <li><a href="#concepts">Concepts</a></li>
+      <li><a href="#engine">Engine details</a></li>
+    </ul>
+  </div>
+
+  <h2 id="core">Core sequences</h2>
+
+  <div class="term" id="prime">
+    <div class="name">Prime <span class="symbol">p<sub>n</sub></span></div>
+    <p>The <em>n</em>-th prime number, in the natural order: p<sub>1</sub> = 2, p<sub>2</sub> = 3, p<sub>3</sub> = 5, …</p>
+    <p class="oeis">OEIS: <a href="https://oeis.org/A000040" target="_blank">A000040</a></p>
+  </div>
+
+  <div class="term" id="gap">
+    <div class="name">Prime gap <span class="symbol">g<sub>n</sub></span></div>
+    <div class="formula">g<sub>n</sub> = p<sub>n+1</sub> − p<sub>n</sub></div>
+    <p>The distance from one prime to the next. Always even for n ≥ 2 (since all primes after 2 are odd). The first few are 1, 2, 2, 4, 2, 4, 2, 4, 6, 2, 6, 4, 2, 4, 6, …</p>
+    <p class="oeis">OEIS: <a href="https://oeis.org/A001223" target="_blank">A001223</a></p>
+  </div>
+
+  <div class="term" id="d2">
+    <div class="name">Second difference <span class="symbol">Δ²<sub>n</sub> · d2</span></div>
+    <div class="formula">Δ²<sub>n</sub> = g<sub>n</sub> − g<sub>n−1</sub> = p<sub>n+1</sub> − 2p<sub>n</sub> + p<sub>n−1</sub></div>
+    <p>How the gap is changing — positive when the gap is widening, negative when it is shrinking. Sums of three consecutive primes determine local "curvature" in the prime terrain.</p>
+    <p class="oeis">OEIS: <a href="https://oeis.org/A036263" target="_blank">A036263</a></p>
+  </div>
+
+  <div class="term" id="ratio">
+    <div class="name">Second ratio <span class="symbol">r<sub>n</sub></span> <span class="novel">(novel — fractal-core)</span></div>
+    <div class="formula">r<sub>n</sub> = Δ²<sub>n</sub> / (p<sub>n+1</sub> − p<sub>n−1</sub>)</div>
+    <p>The second difference normalized by the surrounding span. <strong>Always lies in [−1, 1]</strong> — proof: |Δ²<sub>n</sub>| = |g<sub>n</sub> − g<sub>n−1</sub>| ≤ g<sub>n</sub> + g<sub>n−1</sub> = p<sub>n+1</sub> − p<sub>n−1</sub>.</p>
+    <p>r<sub>n</sub> = +1 when the right gap is much larger than the left; r<sub>n</sub> = −1 when the left is much larger; r<sub>n</sub> = 0 when both gaps are equal.</p>
+    <p class="why">Returned as a reduced rational (num/den with gcd = 1) so the sequence is exact for arbitrary precision. No OEIS entry exists for this normalized form; it appears to be original to this project, suitable for citation as "second ratio" of the prime sequence.</p>
+  </div>
+
+  <div class="term" id="index">
+    <div class="name">Index <span class="symbol">n</span></div>
+    <p>The 1-indexed position of a prime in the natural ordering. Index 1 is p = 2, index 2 is p = 3, etc. Inputs to this site can be either the index or the value — a "by index" search of n=100 gives the 100th prime (541), while a "by value" search of n=100 gives the next prime ≥ 100 (which is 101).</p>
+  </div>
+
+  <h2 id="derived">Derived measures</h2>
+
+  <div class="term" id="merit">
+    <div class="name">Gap merit <span class="symbol">M<sub>n</sub></span></div>
+    <div class="formula">M<sub>n</sub> = g<sub>n</sub> / ln(p<sub>n</sub>)</div>
+    <p>How impressive a gap is, normalized against the "expected" gap at that scale. The Prime Number Theorem implies the average gap near p is roughly ln(p), so the average merit converges to 1 as n grows.</p>
+    <p class="why">A merit of 4 means the gap is 4× the local average — a noteworthy outlier. Gap-hunters in number theory search for "high-merit gaps". The current record (as of 2024) is around 41.94 by Helm, Andersen et al.</p>
+  </div>
+
+  <div class="term" id="cramer">
+    <div class="name">Cramér's ratio <span class="symbol">C<sub>n</sub></span></div>
+    <div class="formula">C<sub>n</sub> = g<sub>n</sub> / ln²(p<sub>n</sub>)</div>
+    <p>Tests Cramér's heuristic, which predicts that prime gaps satisfy g<sub>n</sub> = O(ln²(p<sub>n</sub>)). The conjecture is limsup C<sub>n</sub> = 1; current empirical evidence puts it at about 0.92.</p>
+    <p class="why">Where merit asks "how big relative to the average," Cramér asks "how big relative to the conjectured maximum."</p>
+  </div>
+
+  <h2 id="races">Residue races &amp; Chebyshev's bias</h2>
+
+  <div class="term" id="residue">
+    <div class="name">Residue race</div>
+    <p>For a fixed modulus m, count the primes in each residue class p ≡ a (mod m), excluding the primes that divide m. As n grows, the counts in each admissible class converge (Dirichlet's theorem), but at any finite x the leader fluctuates.</p>
+  </div>
+
+  <div class="term" id="chebyshev-bias">
+    <div class="name">Chebyshev's bias</div>
+    <p>The empirical observation, due to Chebyshev (1853), that primes ≡ 3 (mod 4) lead primes ≡ 1 (mod 4) at "almost all" finite x. The first sign change — where π(x; 4, 1) overtakes π(x; 4, 3) — occurs at x ≈ 26 861 (Bays &amp; Hudson, 1978). The bias generalizes: among admissible residues, those that are <em>quadratic non-residues</em> tend to lead.</p>
+    <p class="oeis">OEIS: <a href="https://oeis.org/A007350" target="_blank">A007350</a> (sign changes of π(x;4,3) − π(x;4,1))</p>
+  </div>
+
+  <div class="term" id="lead-changes">
+    <div class="name">Lead changes</div>
+    <p>The number of times the leader of a residue race switches within the queried window. Littlewood (1914) proved there are infinitely many.</p>
+  </div>
+
+  <h2 id="theta">Chebyshev's θ(x)</h2>
+
+  <div class="term" id="theta-fn">
+    <div class="name">Theta function <span class="symbol">θ(x)</span></div>
+    <div class="formula">θ(x) = Σ<sub>p ≤ x</sub> ln(p)</div>
+    <p>The sum of natural logarithms of all primes up to x. The Prime Number Theorem is equivalent to θ(x) ~ x.</p>
+    <p class="why">More tractable than π(x) for analytic work. Under the Riemann Hypothesis, the deviation θ(x) − x is bounded by O(√x · ln²(x)). On this site, set <code>n=1, n_type=index</code> to start the sum at p = 2 — the only configuration where the returned <code>total</code> equals true θ(p<sub>last</sub>).</p>
+    <p class="oeis">OEIS: <a href="https://oeis.org/A083409" target="_blank">A083409</a> (deviation θ(x) − x at integer x)</p>
+  </div>
+
+  <div class="term" id="theta-deviation">
+    <div class="name">Normalized deviation <span class="symbol">(θ(x) − x) / √x</span></div>
+    <p>The empirically-bounded magnitude when the neighborhood actually starts at p = 2. Under RH, this stays bounded by O(ln²(x)), so values larger than that would be a Riemann-Hypothesis-disproving anomaly.</p>
+  </div>
+
+  <h2 id="constellations">Prime constellations (k-tuples)</h2>
+
+  <div class="term" id="constellation">
+    <div class="name">Constellation</div>
+    <p>A run of primes matching a fixed gap signature. Examples: <em>twin primes</em> have signature [2] (gap 2), <em>cousin primes</em> [4], <em>sexy primes</em> [6], <em>prime quadruplets</em> [2, 4, 2].</p>
+    <p>Searched here as <code>?signature=2,4,2&amp;start=…&amp;limit=…</code> on <code>/api/v1/constellations</code>.</p>
+  </div>
+
+  <div class="term" id="signature">
+    <div class="name">Gap signature</div>
+    <p>The list of gaps between consecutive primes in the constellation. A signature of length L matches L+1 primes. The <em>offsets</em> [0, g₁, g₁+g₂, …, g₁+…+g<sub>L</sub>] are the relative positions of those primes from the first.</p>
+  </div>
+
+  <div class="term" id="admissibility">
+    <div class="name">Admissibility (Hardy–Littlewood)</div>
+    <p>A k-tuple is <strong>admissible</strong> if for every prime q, its offsets do not cover all residue classes mod q. Inadmissible tuples can occur at most finitely often. Example: signature [2, 2] gives offsets {0, 2, 4} which mod 3 is {0, 1, 2} — every class — so no triple of primes can form (p, p+2, p+4) infinitely often (excluding the single triple 3, 5, 7).</p>
+    <p>Verifiable instantly via <code>/api/v1/constellations/admissible?signature=…</code>.</p>
+  </div>
+
+  <div class="term" id="density">
+    <div class="name">Density per Δ ln(x)</div>
+    <p>Observed count divided by the natural-log span of the queried window. Hardy–Littlewood predicts asymptotic density ∝ Π(C<sub>k</sub>) / ln<sup>k</sup>(x) for admissible tuples; this site reports the observed density for direct comparison.</p>
+  </div>
+
+  <h3>Built-in patterns</h3>
+  <table>
+    <tr><th align="left">Name</th><th align="left">Signature</th><th align="left">OEIS</th></tr>
+    <tr><td>twin</td><td>[2]</td><td><a href="https://oeis.org/A001359" target="_blank">A001359</a></td></tr>
+    <tr><td>cousin</td><td>[4]</td><td><a href="https://oeis.org/A023200" target="_blank">A023200</a></td></tr>
+    <tr><td>sexy</td><td>[6]</td><td><a href="https://oeis.org/A023201" target="_blank">A023201</a></td></tr>
+    <tr><td>triplet (2-4)</td><td>[2, 4]</td><td><a href="https://oeis.org/A022004" target="_blank">A022004</a></td></tr>
+    <tr><td>triplet (4-2)</td><td>[4, 2]</td><td><a href="https://oeis.org/A022005" target="_blank">A022005</a></td></tr>
+    <tr><td>quadruplet</td><td>[2, 4, 2]</td><td><a href="https://oeis.org/A007530" target="_blank">A007530</a></td></tr>
+    <tr><td>quintuplet</td><td>[2, 4, 2, 4] / [4, 2, 4, 2]</td><td><a href="https://oeis.org/A022006" target="_blank">A022006</a> / <a href="https://oeis.org/A022007" target="_blank">A022007</a></td></tr>
+    <tr><td>sexy triplet</td><td>[6, 6]</td><td><a href="https://oeis.org/A046118" target="_blank">A046118</a></td></tr>
+    <tr><td>sexy quadruplet</td><td>[6, 6, 6]</td><td><a href="https://oeis.org/A046122" target="_blank">A046122</a></td></tr>
+    <tr><td>prime sextuplet</td><td>[4, 2, 4, 2, 4]</td><td><a href="https://oeis.org/A022008" target="_blank">A022008</a></td></tr>
+  </table>
+
+  <h2 id="concepts">Background concepts</h2>
+
+  <div class="term" id="pnt">
+    <div class="name">Prime Number Theorem (PNT)</div>
+    <p>π(x) ~ x / ln(x), or equivalently p<sub>n</sub> ~ n · ln(n). Implies the average gap near p is ≈ ln(p), and is the basis for both the merit normalization (M ≈ 1 on average) and the θ(x) ~ x expectation.</p>
+  </div>
+
+  <div class="term" id="rh">
+    <div class="name">Riemann Hypothesis (RH)</div>
+    <p>The conjecture that all non-trivial zeros of the Riemann zeta function ζ(s) lie on Re(s) = ½. Equivalent to a sharp bound on PNT's error: |θ(x) − x| = O(√x · ln²(x)).</p>
+  </div>
+
+  <div class="term" id="cramer-conj">
+    <div class="name">Cramér's conjecture</div>
+    <p>g<sub>n</sub> = O(ln²(p<sub>n</sub>)) — gaps grow no faster than the square of the local logarithm. Stronger than what PNT alone implies. Currently proven only conditionally (under RH, a weaker bound holds).</p>
+  </div>
+
+  <h2 id="engine">Engine details</h2>
+
+  <div class="term" id="bpsw">
+    <div class="name">BPSW (Baillie-Pomerance-Selfridge-Wagstaff)</div>
+    <p>The primality test used by this site for any value beyond the precomputed sieve. Combines a Miller–Rabin test with base 2 and a strong Lucas test. No counterexamples are known despite testing against many trillions of candidates; widely accepted as practically deterministic for the bit-sizes this site supports.</p>
+  </div>
+
+  <div class="term" id="wheel">
+    <div class="name">Wheel sieve (mod 30030)</div>
+    <p>Before running BPSW on a candidate, we skip any integer that shares a small prime factor with W = 2 · 3 · 5 · 7 · 11 · 13 = 30 030. Of the 30 030 residues only 5 760 are coprime to W, so 80.8 % of composite candidates are eliminated essentially for free — a 5× speedup on <code>nextPrime</code> walks.</p>
+  </div>
+
+  <div class="term" id="kahan">
+    <div class="name">Kahan summation</div>
+    <p>Compensated floating-point summation used when accumulating ln(p) for θ(x). Tracks the running rounding error so the sum stays accurate over thousands of terms.</p>
+  </div>
+
+  <div class="term" id="lnbigint">
+    <div class="name">lnBigInt</div>
+    <p>For primes beyond Number.MAX_SAFE_INTEGER (~9 × 10¹⁵), the naïve <code>Math.log(Number(bigint))</code> loses precision. Our replacement decomposes ln(n) = (digits − 1) · ln(10) + ln(leading 15 digits / 10¹⁴), preserving ~14 significant digits at any magnitude.</p>
+  </div>
+
+  <div class="footer">
+    <p>
+      <a href="index.html">Prime Terrain Explorer</a>
+      <a href="terrain.html">Sleek Terrain</a>
+      <a href="visualizations.html">Visualizations</a>
+      <a href="https://api.fractal-core.com/api/v1/status" target="_blank">API Status</a>
+      <a href="https://api.fractal-core.com/api/v1/capabilities" target="_blank">Capabilities</a>
+    </p>
+    <p>
+      The Prime Terrain API is a free, signed, open prime-data service. Source: github.com/temnoon/fractal-core. Methodology citable as "fractal-core, 2026, retrieved YYYY-MM-DD".
+    </p>
+  </div>
+</body>
+</html>

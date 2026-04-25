@@ -1,0 +1,186 @@
+/* ============================================================
+   Prime Number Designs — Unified Design Tokens
+   Three worlds: PAPER (explorer), CONSOLE (dashboards), PARCHMENT (reader)
+   Pick one world per surface via [data-world="..."] on <body>.
+   Source: claude.ai/design handoff bundle (prime-number-designs-design-system)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+
+:root {
+  /* ---------- FONT STACKS ---------- */
+  --font-paper-serif: "Times New Roman", Times, Georgia, serif;
+  --font-paper-mono:  ui-monospace, "Courier New", Courier, monospace;
+
+  --font-console-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-console-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+  --font-parchment-serif: "EB Garamond", "Georgia", "Times New Roman", serif;
+
+  /* ---------- PAPER WORLD (Explorer / OEIS) ---------- */
+  --paper-bg:         #ffffff;
+  --paper-surface-1:  #f5f5f5;   /* search box */
+  --paper-surface-2:  #fafafa;   /* result panel */
+  --paper-surface-3:  #f0f0f0;   /* table header */
+  --paper-fg:         #000000;
+  --paper-fg-muted:   #666666;
+  --paper-fg-subtle:  #333333;
+  --paper-link:       #0000cc;
+  --paper-link-2:     #0066cc;
+  --paper-error:      #cc0000;
+  --paper-error-bg:   #fff0f0;
+  --paper-error-bd:   #ffcccc;
+  --paper-border:     #cccccc;
+  --paper-border-2:   #dddddd;
+  --paper-border-3:   #eeeeee;
+
+  /* ---------- CONSOLE WORLD — shared neutral core ---------- */
+  --console-bg:        #0a0e14;
+  --console-bg-card:   #0f1419;
+  --console-bg-deep:   #070a10;
+  --console-border:    #1e2633;
+  --console-text:      #e6edf3;
+  --console-muted:     #8b949e;
+
+  /* Console accents — Neutral (visualizations / svg / player) */
+  --console-accent:       #58a6ff;   /* GitHub blue */
+  --console-accent-green: #7ee787;   /* .formula, positive */
+  --console-accent-warn:  #f78166;   /* ratios, warning */
+
+  /* Console accents — Warm (flames / player) */
+  --console-flame:        #ff6b35;
+  --console-flame-hover:  #ff8555;
+  --console-ember:        #f7c94b;
+
+  /* Console accents — Deep (simulation) */
+  --sim-bg-0:     #0b0f17;
+  --sim-bg-1:     #121a2a;
+  --sim-panel:    rgba(15, 23, 38, 0.8);
+  --sim-text:     #d7e3ff;
+  --sim-muted:    #8aa0c7;
+  --sim-grid:     #20304f;
+  --sim-accent:   #7cc0ff;
+  --sim-warn:     #ffb86b;
+  --sim-bad:      #ff5c7a;
+  --sim-good:     #39d98a;
+  --sim-line:     #2a3b62;
+
+  /* Console error */
+  --console-error: #f85149;
+
+  /* Plotly colorscales */
+  --plot-cool-0: #0a0e14;
+  --plot-cool-1: #1a365d;
+  --plot-cool-2: #2563eb;
+  --plot-cool-3: #7c3aed;
+  --plot-cool-4: #db2777;
+  --plot-cool-5: #fbbf24;
+  --plot-terrain-0: #f78166;
+  --plot-terrain-1: #fbbf24;
+  --plot-terrain-2: #7ee787;
+  --plot-terrain-3: #58a6ff;
+  --plot-terrain-4: #a855f7;
+
+  /* ---------- PARCHMENT WORLD (Noema-Rho Reader) ---------- */
+  --parch-page:           #d4cbb8;
+  --parchment:            #f5f0e8;
+  --parchment-dark:       #e8e0d0;
+  --sepia:                #2c1810;
+  --sepia-light:          #4a3728;
+  --brown:                #8b7355;
+  --brown-light:          #a89070;
+  --burgundy:             #6b2c3e;
+  --burgundy-light:       #8a3d52;
+  --gold-dim:             #b8972e;
+
+  /* Entity semantics (parchment reader) */
+  --entity-person:     #2a7a72;
+  --entity-place:      #6b7a2e;
+  --entity-org:        #b8872e;
+  --entity-concept:    #6b4a8a;
+  --entity-event:      #4a6a8a;
+  --entity-value:      #b8972e;
+  --entity-project:    #7a5a3a;
+  --entity-artifact:   #5a6a5a;
+  --entity-claim:      #8a5a4a;
+  --entity-selfaspect: #5a4a7a;
+  --entity-other:      #7a6a5a;
+
+  /* ---------- RADII ---------- */
+  --radius-0:   0;        /* paper world */
+  --radius-sm:  4px;      /* chips, pills (dense) */
+  --radius-md:  6px;      /* inputs, buttons */
+  --radius-lg:  8px;      /* info boxes, stat tiles */
+  --radius-xl:  12px;     /* cards */
+  --radius-2xl: 14px;     /* sim stat cards */
+  --radius-3xl: 18px;     /* sim hero card */
+  --radius-pill: 999px;
+
+  /* ---------- SHADOWS ---------- */
+  --shadow-none:     none;
+  --shadow-hover-sm: 0 2px 6px rgba(0,0,0,0.25);
+  --shadow-card:     0 8px 30px rgba(0,0,0,0.3);           /* svg gallery hover */
+  --shadow-sim:      0 12px 30px rgba(0,0,0,0.35);         /* simulation card */
+  --shadow-pill:     0 8px 20px rgba(0,0,0,0.25);          /* sim button */
+  --shadow-book:     0 0 40px rgba(0,0,0,0.15);            /* parchment book */
+
+  /* ---------- BORDERS ---------- */
+  --border-hair: 1px;
+  --border-thick: 3px;
+
+  /* ---------- SPACING ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ---------- MOTION ---------- */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 0.2s;
+  --dur-med:  0.3s;
+  --dur-slow: 0.5s;
+
+  /* ---------- BACKGROUNDS (named gradients) ---------- */
+  --bg-sim-radial: radial-gradient(1100px 800px at 25% 10%, #1a2a4a 0%, #0b0f17 48%, #070a10 100%);
+  --bg-progress:   linear-gradient(90deg, #4a9eff, #7c3aed);
+  --bg-flame-card: linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%);
+  --bg-parch-mgn:  linear-gradient(90deg, #e8e0d0 0%, #f5f0e8 8%);
+}
+
+/* ============================================================
+   Semantic type (world-scoped).
+   ============================================================ */
+
+body[data-world="paper"] {
+  font-family: var(--font-paper-serif);
+  background: var(--paper-bg);
+  color: var(--paper-fg);
+}
+[data-world="paper"] code,
+[data-world="paper"] pre,
+[data-world="paper"] .mono { font-family: var(--font-paper-mono); font-size: 13px; }
+
+body[data-world="console"] {
+  font-family: var(--font-console-sans);
+  background: var(--console-bg);
+  color: var(--console-text);
+}
+[data-world="console"] code,
+[data-world="console"] .mono    { font: 400 13px/1.4 var(--font-console-mono); }
+[data-world="console"] .formula { font-family: var(--font-console-mono); color: var(--console-accent-green); background: rgba(126,231,135,0.1); padding: 2px 6px; border-radius: var(--radius-sm); }
+
+body[data-world="parchment"] {
+  font-family: var(--font-parchment-serif);
+  font-size: 18px;
+  line-height: 1.65;
+  background: var(--parch-page);
+  color: var(--sepia);
+}
+[data-world="parchment"] .page-label,
+[data-world="parchment"] .section-label { font-variant: small-caps; letter-spacing: 0.15em; color: var(--brown); font-size: 0.85rem; text-transform: lowercase; }
+[data-world="parchment"] .ornament { color: var(--brown); letter-spacing: 0.3em; }
+[data-world="parchment"] .small-caps { font-variant: small-caps; letter-spacing: 0.08em; }
