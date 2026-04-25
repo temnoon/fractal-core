@@ -90,7 +90,9 @@
     @media (max-width: 900px) { .viz-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .viz-grid { grid-template-columns: 1fr; } }
     .viz-card { padding: 0; overflow: hidden; aspect-ratio: 1 / 1; position: relative; cursor: zoom-in; }
-    .viz-card img, .viz-card svg { width: 100%; height: 100%; display: block; }
+    .viz-card .viz-content { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .viz-card .viz-content svg { width: 100%; height: 100%; display: block; }
+    .viz-card img { width: 100%; height: 100%; display: block; object-fit: contain; }
     .viz-card .viz-label {
       position: absolute;
       left: 8px;
@@ -205,7 +207,8 @@
     }
     body[data-world="paper"] .modal .modal-img { background: var(--paper-surface-1); }
     body[data-world="parchment"] .modal .modal-img { background: var(--parchment-dark); }
-    .modal .modal-img img { max-width: 100%; max-height: 80vh; display: block; }
+    .modal .modal-img img,
+    .modal .modal-img svg { max-width: 100%; max-height: 80vh; display: block; }
     .modal .modal-info { padding: 22px 24px; font-size: 0.92rem; }
     .modal .modal-info h3 { margin: 0 0 14px; font-size: 1.05rem; letter-spacing: -0.01em; }
     .modal .modal-info dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 14px; }
@@ -343,7 +346,7 @@
   <div id="vizModal" class="modal-back hidden" onclick="if(event.target===this) closeVizModal()">
     <button class="close" onclick="closeVizModal()" aria-label="Close">×</button>
     <div class="modal">
-      <div class="modal-img"><img id="modalImg" src="" alt=""></div>
+      <div class="modal-img" id="modalImgSlot"></div>
       <div class="modal-info" id="modalInfo"></div>
       <a id="modalImgDl" hidden></a>
     </div>
@@ -526,12 +529,16 @@
       const modes = pickRandom(VIZ_MODES, 3);
       const truncated = truncatePrime(centerPrime || n);
       let html = '<div class="viz-grid">';
+      const cardIds = [];
       for (const mode of modes) {
         const color = VIZ_COLORS[Math.floor(Math.random() * VIZ_COLORS.length)];
         const url = `${API}/svg?n=${encodeURIComponent(n)}&n_type=${nType}&k=${vizK}&mode=${mode}&color=${color}&width=600&height=600`;
         const info = VIZ_INFO[mode];
+        const id = `vc-${Math.random().toString(36).slice(2, 9)}`;
+        cardIds.push({ id, url });
         // Stash the full data on the card so the modal can re-use it.
         const dataAttrs = [
+          `id="${id}"`,
           `data-svg-url="${url}"`,
           `data-mode="${mode}"`,
           `data-color="${color}"`,
@@ -542,10 +549,7 @@
           `data-prime-count="${primeCount}"`,
         ].join(' ');
         html += `<div class="card viz-card" ${dataAttrs} onclick="openVizModal(this)" tabindex="0">
-          <div class="viz-skel">rendering ${mode}…</div>
-          <img src="${url}" alt="${mode} visualization" loading="lazy"
-               onload="this.previousElementSibling.style.display='none'"
-               onerror="this.parentElement.querySelector('.viz-skel').textContent='render failed'" />
+          <div class="viz-content"><div class="viz-skel">rendering ${mode}…</div></div>
           <span class="viz-label">${mode} · ${color}</span>
           <div class="viz-hover">
             <div class="row"><dt>centered on</dt><dd>p = ${truncated}</dd></div>
@@ -556,7 +560,77 @@
         </div>`;
       }
       html += '</div>';
+      // Kick off async fetch+inline injection for each card so we can
+      // tight-fit the viewBox to the actual drawn geometry (mirrors
+      // cosmic-pulse's renderGallery flow).
+      setTimeout(() => cardIds.forEach(c => loadAndFitSvg(c.id, c.url)), 0);
       return html;
+    }
+
+    /**
+     * Fetch the SVG, inject it into the .viz-content div, then tight-fit
+     * the viewBox to the actual drawn geometry's bounding box. This is
+     * what makes the artwork fully contained within the square card
+     * regardless of mode — some modes (tree, walk) draw outside the nominal
+     * canvas; some (mandala, burst) leave gutters around it. After this,
+     * every card is centered + scaled to fill its square.
+     */
+    async function loadAndFitSvg(cardId, url) {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      const slot = card.querySelector('.viz-content');
+      try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        slot.innerHTML = text;
+        const svgEl = slot.querySelector('svg');
+        if (!svgEl) throw new Error('no svg root');
+        fitSvgToContainer(svgEl);
+      } catch (e) {
+        slot.innerHTML = `<div class="viz-skel">render failed</div>`;
+      }
+    }
+
+    /**
+     * Strip the generator's backdrop rect (so the card is transparent),
+     * read the drawn geometry's bbox, and set a tight square viewBox
+     * centered on that bbox with a small margin.
+     */
+    function fitSvgToContainer(svgEl) {
+      // 1. Remove the full-canvas backdrop rect (it makes the SVG opaque).
+      const rects = svgEl.querySelectorAll('rect');
+      for (const rc of rects) {
+        const w = rc.getAttribute('width');
+        const h = rc.getAttribute('height');
+        if (w === '100%' && h === '100%') { rc.remove(); break; }
+        // Some generators emit numeric full-canvas rects matching the SVG dims.
+        const svgW = parseFloat(svgEl.getAttribute('width') || '0');
+        const svgH = parseFloat(svgEl.getAttribute('height') || '0');
+        if (svgW && svgH && parseFloat(w) === svgW && parseFloat(h) === svgH) {
+          rc.remove();
+          break;
+        }
+      }
+      // 2. Find the geometry-bearing root (generator wraps content in #fractal).
+      const fractal = svgEl.querySelector('#fractal') || svgEl;
+      // 3. Compute bbox after a tick (browsers need the SVG attached to compute).
+      try {
+        const bbox = fractal.getBBox();
+        if (bbox.width > 0 && bbox.height > 0) {
+          const size = Math.max(bbox.width, bbox.height);
+          const cx = bbox.x + bbox.width / 2;
+          const cy = bbox.y + bbox.height / 2;
+          const margin = size * 0.04;
+          const tight = size + 2 * margin;
+          svgEl.setAttribute('viewBox', `${cx - tight / 2} ${cy - tight / 2} ${tight} ${tight}`);
+          svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+          svgEl.setAttribute('width', '100%');
+          svgEl.setAttribute('height', '100%');
+        }
+      } catch (e) {
+        // getBBox can throw on some SVGs (e.g. detached). Leave as-is.
+      }
     }
 
     function escapeAttr(s) {
@@ -572,7 +646,26 @@
         ? `p(${Number(d.anchor).toLocaleString()})`
         : `value ${truncatePrime(d.anchor, 22)}`;
       const fullUrl = d.svgUrl + '&width=2000&height=2000';
-      document.getElementById('modalImg').src = d.svgUrl;
+      // Clone the already-fitted SVG from the card so the modal inherits
+      // the tight-bounded viewBox without re-fetching or re-fitting.
+      const fittedSvg = cardEl.querySelector('.viz-content svg');
+      const slot = document.getElementById('modalImgSlot');
+      slot.innerHTML = '';
+      if (fittedSvg) {
+        const clone = fittedSvg.cloneNode(true);
+        // Let the modal-img container sizing rule scale it.
+        clone.removeAttribute('width');
+        clone.removeAttribute('height');
+        clone.style.width = '100%';
+        clone.style.height = 'auto';
+        clone.style.maxHeight = '80vh';
+        slot.appendChild(clone);
+      } else {
+        // Fall back to <img src=…> if the card's SVG hasn't loaded yet.
+        const img = document.createElement('img');
+        img.src = d.svgUrl;
+        slot.appendChild(img);
+      }
       document.getElementById('modalImgDl').href = fullUrl;
       document.getElementById('modalInfo').innerHTML = `
         <h3>${info.title}</h3>
