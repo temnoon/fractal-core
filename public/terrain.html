@@ -81,6 +81,41 @@
     .legend-link a { color: inherit; }
 
     /* ── Result ───────────────────────────────────────────────────────── */
+    .viz-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 20px;
+    }
+    @media (max-width: 900px) { .viz-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .viz-grid { grid-template-columns: 1fr; } }
+    .viz-card { padding: 0; overflow: hidden; aspect-ratio: 1 / 1; position: relative; }
+    .viz-card img, .viz-card svg { width: 100%; height: 100%; display: block; }
+    .viz-card .viz-label {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+      backdrop-filter: blur(6px);
+      background: rgba(10, 14, 20, 0.55);
+      color: #fff;
+    }
+    .viz-card .viz-skel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      opacity: 0.5;
+      background: var(--console-bg-deep);
+    }
+    body[data-world="paper"] .viz-card .viz-skel { background: var(--paper-surface-1); color: var(--paper-fg-muted); }
+    body[data-world="parchment"] .viz-card .viz-skel { background: var(--parchment-dark); color: var(--brown); }
     .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 20px; }
     .card {
       padding: 14px 16px;
@@ -268,12 +303,61 @@
       check();
     }
 
+    /* ── Visualization row (top, before data cards) ───────────────────── */
+    const VIZ_MODES = ['tree', 'spiral', 'mandala', 'walk', 'burst', 'wave'];
+    const VIZ_COLORS = ['prime', 'fire', 'ice', 'rainbow'];
+
+    /** Pick `count` distinct random items. */
+    function pickRandom(arr, count) {
+      const pool = arr.slice();
+      const out = [];
+      while (out.length < count && pool.length) {
+        const i = Math.floor(Math.random() * pool.length);
+        out.push(pool.splice(i, 1)[0]);
+      }
+      return out;
+    }
+
+    /**
+     * Build the row of three SVG visualizations. Each pulls from /api/v1/svg
+     * with a capped k (max 100, chosen so the renderer is never asked for
+     * more than ~201 primes — keeps each viz fast no matter how big the
+     * user's main neighborhood query is). The anchor is the user's queried
+     * n, which is the center for index-mode and the smallest enclosed prime
+     * for value-mode.
+     */
+    function vizRow(n, nType, k) {
+      const userK = parseInt(k, 10) || 20;
+      // Spec: for sequences over 500, render only the first ~500 primes.
+      // The /svg endpoint caps at k=100 (=201 primes), well under 500, so
+      // we just clamp to its allowed range. For small queries we still
+      // honor the user's k to keep the viz tied to their actual window.
+      const vizK = Math.max(5, Math.min(userK, 100));
+      const modes = pickRandom(VIZ_MODES, 3);
+      let html = '<div class="viz-grid">';
+      for (const mode of modes) {
+        const color = VIZ_COLORS[Math.floor(Math.random() * VIZ_COLORS.length)];
+        const url = `${API}/svg?n=${encodeURIComponent(n)}&n_type=${nType}&k=${vizK}&mode=${mode}&color=${color}&width=600&height=600`;
+        html += `<div class="card viz-card">
+          <div class="viz-skel">rendering ${mode}…</div>
+          <img src="${url}" alt="${mode} visualization" loading="lazy"
+               onload="this.previousElementSibling.style.display='none'"
+               onerror="this.parentElement.querySelector('.viz-skel').textContent='render failed'" />
+          <span class="viz-label">${mode} · ${color}</span>
+        </div>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
     /* ── Renderers ────────────────────────────────────────────────────── */
     function render(data, n, nType, k, cpuMs) {
       const r = data.result;
       if (!r) return `<div class="err">missing result</div>`;
       const stats = r.stats || {};
       let html = `<h2 style="margin-top:24px">Neighborhood around ${nType === 'index' ? 'p(' + n + ')' : n} = ${r.center_prime}</h2>`;
+      // Top row: three random visualizations of the same neighborhood.
+      html += vizRow(n, nType, k);
       html += '<div class="result-grid">';
 
       // Gaps card (mini histogram)
