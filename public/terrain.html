@@ -89,7 +89,7 @@
     }
     @media (max-width: 900px) { .viz-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .viz-grid { grid-template-columns: 1fr; } }
-    .viz-card { padding: 0; overflow: hidden; aspect-ratio: 1 / 1; position: relative; }
+    .viz-card { padding: 0; overflow: hidden; aspect-ratio: 1 / 1; position: relative; cursor: zoom-in; }
     .viz-card img, .viz-card svg { width: 100%; height: 100%; display: block; }
     .viz-card .viz-label {
       position: absolute;
@@ -104,6 +104,51 @@
       background: rgba(10, 14, 20, 0.55);
       color: #fff;
     }
+    /* Hover tooltip overlay — shows starting prime, count, formula */
+    .viz-card .viz-hover {
+      position: absolute;
+      inset: 0;
+      padding: 14px 16px;
+      background: rgba(10, 14, 20, 0.88);
+      color: #fff;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.18s var(--ease-out);
+      pointer-events: none;
+    }
+    .viz-card:hover .viz-hover { opacity: 1; }
+    .viz-card .viz-hover .row {
+      display: flex;
+      gap: 8px;
+      flex-direction: column;
+      margin: 0;
+    }
+    .viz-card .viz-hover dt {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.6;
+      margin: 0;
+    }
+    .viz-card .viz-hover dd {
+      font-family: var(--font-console-mono);
+      font-size: 0.78rem;
+      margin: 0;
+      word-break: break-all;
+    }
+    .viz-card .viz-hover .formula {
+      font-family: var(--font-console-mono);
+      background: rgba(255,255,255,0.08);
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.74rem;
+      line-height: 1.5;
+    }
     .viz-card .viz-skel {
       position: absolute;
       inset: 0;
@@ -116,6 +161,83 @@
     }
     body[data-world="paper"] .viz-card .viz-skel { background: var(--paper-surface-1); color: var(--paper-fg-muted); }
     body[data-world="parchment"] .viz-card .viz-skel { background: var(--parchment-dark); color: var(--brown); }
+
+    /* ── Modal ────────────────────────────────────────────────────────── */
+    .modal-back {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(6px);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-back.hidden { display: none; }
+    .modal-back .modal {
+      background: var(--console-bg-card);
+      color: var(--console-text);
+      border: 1px solid var(--console-border);
+      border-radius: var(--radius-xl);
+      max-width: 1080px;
+      width: 100%;
+      max-height: 92vh;
+      overflow: auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 0;
+    }
+    body[data-world="paper"] .modal-back .modal { background: var(--paper-bg); color: var(--paper-fg); border-color: var(--paper-border); }
+    body[data-world="parchment"] .modal-back .modal { background: var(--parchment); color: var(--sepia); border-color: var(--brown-light); }
+    @media (max-width: 720px) { .modal-back .modal { grid-template-columns: 1fr; } }
+    .modal .modal-img {
+      background: var(--console-bg-deep);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+    body[data-world="paper"] .modal .modal-img { background: var(--paper-surface-1); }
+    body[data-world="parchment"] .modal .modal-img { background: var(--parchment-dark); }
+    .modal .modal-img img { max-width: 100%; max-height: 80vh; display: block; }
+    .modal .modal-info { padding: 22px 24px; font-size: 0.92rem; }
+    .modal .modal-info h3 { margin: 0 0 14px; font-size: 1.05rem; letter-spacing: -0.01em; }
+    .modal .modal-info dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 14px; }
+    .modal .modal-info dt { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; align-self: center; }
+    .modal .modal-info dd { font-family: var(--font-console-mono); margin: 0; word-break: break-all; font-size: 0.84rem; }
+    .modal .modal-info .formula {
+      font-family: var(--font-console-mono);
+      background: rgba(127,127,127,0.12);
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      font-size: 0.84rem;
+      line-height: 1.55;
+    }
+    .modal .close {
+      position: absolute;
+      top: 32px;
+      right: 32px;
+      background: rgba(0,0,0,0.4);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: var(--radius-pill);
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+    .modal .actions { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .modal .actions a {
+      font-size: 0.82rem;
+      padding: 5px 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid currentColor;
+      text-decoration: none;
+      color: inherit;
+      opacity: 0.8;
+    }
+    .modal .actions a:hover { opacity: 1; }
     .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 20px; }
     .card {
       padding: 14px 16px;
@@ -212,6 +334,16 @@
     <div id="results"></div>
   </div>
 
+  <!-- Visualization detail modal — opened on viz-card click. -->
+  <div id="vizModal" class="modal-back hidden" onclick="if(event.target===this) closeVizModal()">
+    <button class="close" onclick="closeVizModal()" aria-label="Close">×</button>
+    <div class="modal">
+      <div class="modal-img"><img id="modalImg" src="" alt=""></div>
+      <div class="modal-info" id="modalInfo"></div>
+      <a id="modalImgDl" hidden></a>
+    </div>
+  </div>
+
   <script>
     const API = 'https://api.fractal-core.com/api/v1';
 
@@ -240,7 +372,12 @@
       const statsOnly = document.getElementById('queryStats').checked;
 
       const include = new Set(['gaps', 'd2', 'ratio']);
-      if (document.getElementById('ntMerit').checked) { include.add('merit'); include.add('cramer'); }
+      if (document.getElementById('ntMerit').checked) {
+        include.add('merit'); include.add('cramer');
+        // Need primes when summary is OFF so the client-side top-N can
+        // populate the (rank, p_n, p_n+1, gap, merit, Cramér) rows.
+        if (!statsOnly) include.add('primes');
+      }
       if (document.getElementById('ntResidue').checked) { include.add('residue'); if (statsOnly) include.add('residue_running'); }
       if (document.getElementById('ntTheta').checked) include.add('theta');
       if (document.getElementById('ntConstellations').checked) include.add('constellations');
@@ -307,6 +444,45 @@
     const VIZ_MODES = ['tree', 'spiral', 'mandala', 'walk', 'burst', 'wave'];
     const VIZ_COLORS = ['prime', 'fire', 'ice', 'rainbow'];
 
+    /**
+     * Per-mode formula and natural-language description of how the SVG
+     * generator turns the second-difference (Δ²) and second-ratio (r)
+     * sequences into a visual. Pulled from the /svg/info endpoint with
+     * concrete formula notation added.
+     */
+    const VIZ_INFO = {
+      tree: {
+        title: 'Recursive branching tree',
+        oneLine: 'Δ² drives branch angles, r drives branch lengths',
+        formula: 'angle_i = base + κ · Δ²_i\nlength_i = L₀ · (1 + α · r_i)\nrecursion depth = log₂(N)',
+      },
+      spiral: {
+        title: 'Multi-arm spiral',
+        oneLine: 'Δ² modulates angle increment, r modulates radius',
+        formula: 'θ_i = θ_{i−1} + φ + κ · Δ²_i\nρ_i = ρ_{i−1} · (1 + α · r_i)\n(θ in polar)',
+      },
+      mandala: {
+        title: 'Symmetric circular pattern',
+        oneLine: 'Δ² drives symmetry order, r drives petal extension',
+        formula: 'sym_order = round(|Δ²_i|) (mod m)\npetal_radius_i = R · (1 + r_i)\nrotated about center',
+      },
+      walk: {
+        title: 'Turtle-graphics walk',
+        oneLine: 'Δ² is turn angle, r is step length',
+        formula: 'heading += κ · Δ²_i\nstep = s₀ · (1 + α · r_i)\n(forward, then turn)',
+      },
+      burst: {
+        title: 'Radial ray burst',
+        oneLine: 'Δ² drives ray length, r drives decoration density',
+        formula: 'ray_length_i = L · (1 + κ · Δ²_i)\nray_angle_i = 2π · i / N\ndecoration_density ∝ |r_i|',
+      },
+      wave: {
+        title: 'Wave interference',
+        oneLine: 'Δ² and r define wave-source positions and amplitudes',
+        formula: 'source_i = (Δ²_i, r_i) · scale\nfield(p) = Σ A_i · cos(k|p − source_i|)\nrendered as level sets',
+      },
+    };
+
     /** Pick `count` distinct random items. */
     function pickRandom(arr, count) {
       const pool = arr.slice();
@@ -318,6 +494,12 @@
       return out;
     }
 
+    function truncatePrime(s, max = 28) {
+      if (!s) return '—';
+      if (s.length <= max) return s;
+      return s.slice(0, max - 3) + '…';
+    }
+
     /**
      * Build the row of three SVG visualizations. Each pulls from /api/v1/svg
      * with a capped k (max 100, chosen so the renderer is never asked for
@@ -326,28 +508,116 @@
      * n, which is the center for index-mode and the smallest enclosed prime
      * for value-mode.
      */
-    function vizRow(n, nType, k) {
+    function vizRow(n, nType, k, centerPrime) {
       const userK = parseInt(k, 10) || 20;
       // Spec: for sequences over 500, render only the first ~500 primes.
       // The /svg endpoint caps at k=100 (=201 primes), well under 500, so
       // we just clamp to its allowed range. For small queries we still
       // honor the user's k to keep the viz tied to their actual window.
       const vizK = Math.max(5, Math.min(userK, 100));
+      const primeCount = vizK * 2 + 1;
       const modes = pickRandom(VIZ_MODES, 3);
+      const truncated = truncatePrime(centerPrime || n);
       let html = '<div class="viz-grid">';
       for (const mode of modes) {
         const color = VIZ_COLORS[Math.floor(Math.random() * VIZ_COLORS.length)];
         const url = `${API}/svg?n=${encodeURIComponent(n)}&n_type=${nType}&k=${vizK}&mode=${mode}&color=${color}&width=600&height=600`;
-        html += `<div class="card viz-card">
+        const info = VIZ_INFO[mode];
+        // Stash the full data on the card so the modal can re-use it.
+        const dataAttrs = [
+          `data-svg-url="${url}"`,
+          `data-mode="${mode}"`,
+          `data-color="${color}"`,
+          `data-anchor="${n}"`,
+          `data-anchor-type="${nType}"`,
+          `data-center="${escapeAttr(centerPrime || '')}"`,
+          `data-k="${vizK}"`,
+          `data-prime-count="${primeCount}"`,
+        ].join(' ');
+        html += `<div class="card viz-card" ${dataAttrs} onclick="openVizModal(this)" tabindex="0">
           <div class="viz-skel">rendering ${mode}…</div>
           <img src="${url}" alt="${mode} visualization" loading="lazy"
                onload="this.previousElementSibling.style.display='none'"
                onerror="this.parentElement.querySelector('.viz-skel').textContent='render failed'" />
           <span class="viz-label">${mode} · ${color}</span>
+          <div class="viz-hover">
+            <div class="row"><dt>centered on</dt><dd>p = ${truncated}</dd></div>
+            <div class="row"><dt>primes used</dt><dd>${primeCount.toLocaleString()} (k=${vizK} each side + center)</dd></div>
+            <div class="row"><dt>${info.title}</dt><dd>${info.oneLine}</dd></div>
+            <div class="formula">${info.formula.replace(/\n/g, '<br>')}</div>
+          </div>
         </div>`;
       }
       html += '</div>';
       return html;
+    }
+
+    function escapeAttr(s) {
+      return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    /** Click handler — opens the modal with full info for this viz card. */
+    window.openVizModal = function (cardEl) {
+      const d = cardEl.dataset;
+      const info = VIZ_INFO[d.mode] || { title: d.mode, oneLine: '', formula: '' };
+      const center = d.center || d.anchor;
+      const anchorLabel = d.anchorType === 'index'
+        ? `p(${Number(d.anchor).toLocaleString()})`
+        : `value ${truncatePrime(d.anchor, 22)}`;
+      const fullUrl = d.svgUrl + '&width=2000&height=2000';
+      document.getElementById('modalImg').src = d.svgUrl;
+      document.getElementById('modalImgDl').href = fullUrl;
+      document.getElementById('modalInfo').innerHTML = `
+        <h3>${info.title}</h3>
+        <dl>
+          <dt>Mode</dt><dd>${d.mode}</dd>
+          <dt>Color</dt><dd>${d.color}</dd>
+          <dt>Anchor</dt><dd>${anchorLabel}</dd>
+          <dt>Center prime</dt><dd>${center || '—'}</dd>
+          <dt>Primes used</dt><dd>${Number(d.primeCount).toLocaleString()} (k=${d.k} each side + center)</dd>
+        </dl>
+        <p><strong>${info.oneLine}</strong></p>
+        <p>The visualization is built from the <em>second difference</em> Δ²<sub>n</sub> = g<sub>n</sub> − g<sub>n−1</sub>
+        and the <em>second ratio</em> r<sub>n</sub> = Δ²<sub>n</sub> / (p<sub>n+1</sub> − p<sub>n−1</sub>) of the
+        ${Number(d.primeCount).toLocaleString()} primes around the anchor. r is exact (rational) and bounded in [−1, 1].</p>
+        <div class="formula">${info.formula.replace(/\n/g, '<br>')}</div>
+        <div class="actions">
+          <a href="${d.svgUrl}" target="_blank">SVG (600×600)</a>
+          <a href="${fullUrl}" target="_blank">SVG (2000×2000)</a>
+          <a href="glossary.html#${d.mode === 'walk' ? 'd2' : 'ratio'}">glossary</a>
+        </div>
+      `;
+      document.getElementById('vizModal').classList.remove('hidden');
+    };
+
+    window.closeVizModal = function () {
+      document.getElementById('vizModal').classList.add('hidden');
+    };
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeVizModal();
+    });
+
+    /**
+     * When the user has turned stats-summary OFF but ticked an NT box, the
+     * server returns the raw arrays (r.merit, r.cramer, etc.) without the
+     * pre-summarized rich tables. Build the equivalent client-side so the
+     * tables show up regardless of the summary toggle.
+     */
+    function clientMeritStats(arr, sortField, primes, gaps, max, topN = 8) {
+      if (!arr || !arr.length) return null;
+      const idxs = arr.map((_, i) => i).sort((a, b) => arr[b] - arr[a]);
+      const top = idxs.slice(0, topN).map((idx, rank) => ({
+        rank: rank + 1,
+        index: idx,
+        p: (primes && primes[idx]) || '',
+        p_next: (primes && primes[idx + 1]) || '',
+        gap: (gaps && gaps[idx]) || '',
+        merit: sortField === 'merit' ? arr[idx] : 0,
+        cramer: sortField === 'cramer' ? arr[idx] : 0,
+      }));
+      const sum = arr.reduce((s, v) => s + v, 0);
+      return { top, max: max || { value: arr[idxs[0]], index: idxs[0] }, mean: sum / arr.length };
     }
 
     /* ── Renderers ────────────────────────────────────────────────────── */
@@ -355,9 +625,16 @@
       const r = data.result;
       if (!r) return `<div class="err">missing result</div>`;
       const stats = r.stats || {};
+
+      // Whenever a number-theory field's array is present but the server
+      // didn't pre-summarize it, build the rich table client-side. Result:
+      // ticking Merit/Cramér always renders the same top-N + mean view,
+      // regardless of whether "stats summary" was on.
+      if (!stats.merit && r.merit) stats.merit = clientMeritStats(r.merit, 'merit', r.primes, r.gaps, r.max_merit);
+      if (!stats.cramer && r.cramer) stats.cramer = clientMeritStats(r.cramer, 'cramer', r.primes, r.gaps, r.max_cramer);
       let html = `<h2 style="margin-top:24px">Neighborhood around ${nType === 'index' ? 'p(' + n + ')' : n} = ${r.center_prime}</h2>`;
       // Top row: three random visualizations of the same neighborhood.
-      html += vizRow(n, nType, k);
+      html += vizRow(n, nType, k, r.center_prime);
       html += '<div class="result-grid">';
 
       // Gaps card (mini histogram)
