@@ -317,6 +317,8 @@ export const JobCreateSchema = z.object({
   w: BigIntString.optional(),
   include: z.array(IncludeFieldSchema).optional(),
   modulus: z.number().int().min(2).optional(),
+  stats_only: z.boolean().optional().default(false),
+  top_n: z.number().int().min(1).max(100).optional().default(10),
   engine: EngineSchema.optional().default('auto'),
   validate: ValidateSchema.optional().default('none'),
   proof: ProofSchema.optional().default('none'),

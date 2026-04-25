@@ -13,7 +13,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   createAroundValueState,
+  createStatsState,
   processChunkAroundValue,
+  processChunkStatsOnly,
   setChunkTimeoutMs,
   getChunkTimeoutMs,
   serializeState,
@@ -77,6 +79,27 @@ describe('chunked around-value walker', () => {
 
     expect(state.completed).toBe(true);
     expect(state.primes.length).toBe(7); // k=3 each side + center
+  });
+
+  it('does not divide by zero when stats walk starts at p=2', () => {
+    // Regression: at center=2, prevPrime(1) returns 2 forever, which used to
+    // fill beforePrimes with k duplicate '2' strings. Forward replay then
+    // produced span = p2 - p0 = 0 → BigInt 0/0 → "Division by zero".
+    const original = getChunkTimeoutMs();
+    setChunkTimeoutMs(60_000);
+    const state = createStatsState('zero-walk', 2n, 50, true, true, true);
+    let chunks = 0;
+    while (!state.completed && chunks < 50) {
+      processChunkStatsOnly(state);
+      chunks++;
+    }
+    setChunkTimeoutMs(original);
+
+    expect(state.completed).toBe(true);
+    expect(state.totalGaps).toBeGreaterThan(0);
+    expect(state.totalRatio).toBeGreaterThan(0);
+    // The leading gap 2→3 should be present in the d2 frequency table.
+    expect(state.countsGaps?.['1']).toBeDefined();
   });
 
   it('checkpoints pendingForwardCandidate when no prime found in a chunk', () => {

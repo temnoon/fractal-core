@@ -107,7 +107,23 @@ async function kvPutUserJobs(kv: KVNamespace, userId: string, jobIds: string[]):
 export function needsAsyncProcessing(request: CanonicalRequest): boolean {
   const k = request.k ?? 10;
 
-  // Large k always needs async
+  // stats_only is much cheaper memory-wise than full lists, and the sync
+  // path is the only one that currently accumulates the new number-theory
+  // fields (merit / cramer / residue / theta / constellations). Allow up to
+  // STATS_SYNC_K_THRESHOLD synchronously so users get a complete summary.
+  // Beyond that, fall back to the async (gaps/d2/ratio-only) path until the
+  // chunked stats accumulator learns the rest of the fields.
+  const STATS_SYNC_K_THRESHOLD = 25_000;
+  if (request.stats_only) {
+    if (k > STATS_SYNC_K_THRESHOLD) return true;
+    if (request.n_type === 'index') {
+      const index = parseInt(request.n, 10);
+      if (index > LARGE_INDEX_THRESHOLD) return true;
+    }
+    return false;
+  }
+
+  // Full-list path: any k > LARGE_K_THRESHOLD needs async to bound memory.
   if (k > LARGE_K_THRESHOLD) return true;
 
   // Large index-based lookups

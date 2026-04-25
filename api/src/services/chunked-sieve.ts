@@ -445,13 +445,25 @@ export function processChunkStatsOnly(state: ChunkState): ChunkResult {
   // state.beforePrimes (oldest-first). The forward phase replays them
   // through the sliding window without re-testing — saves ~k isPrime calls,
   // i.e. ~33% of the stats-only walk for large k.
+  //
+  // Edge case: when the center is at or near p=2, prevPrime(1) returns 2
+  // forever. We detect "no more progress backward" via next >= current and
+  // halt early; the forward phase then runs on a shorter (or empty) backward
+  // buffer, which is a correct partial neighborhood rather than a corrupt
+  // run of duplicates.
   if (state.phase === 'backward') {
     let current = BigInt(state.currentValue);
     let remaining = state.remainingBack ?? k;
     if (!state.beforePrimes) state.beforePrimes = [];
     const beforePrimes = state.beforePrimes;
+    let exhaustedBackward = false;
     while (remaining > 0 && Date.now() - startTime < CHUNK_TIMEOUT_MS / 2) {
-      current = bpswEngine.prevPrime(current - 1n);
+      const next = bpswEngine.prevPrime(current - 1n);
+      if (next >= current) {
+        exhaustedBackward = true;
+        break;
+      }
+      current = next;
       // Maintain ascending order (oldest first) — replays naturally forward.
       beforePrimes.unshift(current.toString());
       remaining--;
@@ -461,7 +473,7 @@ export function processChunkStatsOnly(state: ChunkState): ChunkResult {
     state.remainingBack = remaining;
     state.chunksProcessed++;
     state.updatedAt = new Date().toISOString();
-    if (remaining === 0) {
+    if (remaining === 0 || exhaustedBackward) {
       state.startPrime = current.toString();
       state.phase = 'forward';
       state.currentValue = current;
@@ -512,11 +524,16 @@ export function processChunkStatsOnly(state: ChunkState): ChunkResult {
       }
       if (state.computeRatio) {
         const span = p2 - p0;
-        const g = computeGcd(d2, span);
-        const num = (d2 / g).toString();
-        const den = (span / g).toString();
-        incCount(state.countsRatio!, `${num}/${den}`);
-        state.totalRatio = (state.totalRatio ?? 0) + 1;
+        // span === 0 means p2 == p0 — degenerate (e.g. start of sequence
+        // edge cases). Skip rather than divide by zero.
+        if (span !== 0n) {
+          const g = computeGcd(d2, span);
+          const denom = g === 0n ? 1n : g;
+          const num = (d2 / denom).toString();
+          const den = (span / denom).toString();
+          incCount(state.countsRatio!, `${num}/${den}`);
+          state.totalRatio = (state.totalRatio ?? 0) + 1;
+        }
       }
     }
 
