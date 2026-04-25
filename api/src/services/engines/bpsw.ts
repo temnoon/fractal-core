@@ -420,8 +420,12 @@ export function createBpswEngine(): BpswEngine {
         ({ value: candidate, idx } = stepBack(candidate, idx));
       }
 
-      // Below the wheel — return largest small prime ≤ candidate.
-      for (let i = reversed.length - 1; i >= 0; i--) {
+      // Below the wheel — return the largest wheel-base prime ≤ n.
+      // `reversed` is descending [13, 11, 7, 5, 3, 2], so the FIRST element
+      // that is ≤ n is by definition the largest. (Previously we walked
+      // from the end of `reversed`, which returned the smallest prime ≤ n
+      // — e.g. prevPrime(6) → 2 instead of 5.)
+      for (let i = 0; i < reversed.length; i++) {
         if (reversed[i] <= n) return reversed[i];
       }
       return 2n;
@@ -451,25 +455,37 @@ export function createBpswEngine(): BpswEngine {
     },
 
     primesAround(center: bigint, count: number): { before: bigint[]; after: bigint[] } {
+      // Use the wheel-sieved prevPrime/nextPrime helpers — both already
+      // align candidates to wheel-coprime residues, which catches the
+      // long-standing parity bug where the previous implementation
+      // started "candidate = center - 1n" (even when center is any odd
+      // prime), then decremented by 2, never visited an odd number, and
+      // walked all the way down to 2. That yielded `before = [2]` for
+      // any large odd center — a silent, severe correctness bug.
       const before: bigint[] = [];
       const after: bigint[] = [];
 
-      // Find primes before center
-      let candidate = center - 1n;
-      while (before.length < count && candidate >= 2n) {
-        if (this.isPrime(candidate)) {
-          before.unshift(candidate);
-        }
-        candidate -= candidate === 3n ? 1n : 2n;
+      // Walk backward from center.
+      let p = center;
+      for (let i = 0; i < count; i++) {
+        if (p <= 2n) break;
+        p = this.prevPrime(p - 1n);
+        before.unshift(p);
+        if (p === 2n) break;
       }
 
-      // Find primes after center (including center if prime)
-      candidate = center;
+      // Walk forward starting at center; include center if it's prime,
+      // otherwise the first prime above it.
+      p = center;
+      if (this.isPrime(p)) {
+        after.push(p);
+      } else {
+        p = this.nextPrime(p + 1n);
+        after.push(p);
+      }
       while (after.length < count) {
-        if (this.isPrime(candidate)) {
-          after.push(candidate);
-        }
-        candidate += candidate === 2n ? 1n : 2n;
+        p = this.nextPrime(p + 1n);
+        after.push(p);
       }
 
       return { before, after };
