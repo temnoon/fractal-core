@@ -14,7 +14,7 @@
 
 import { bytesToHex } from '@noble/hashes/utils';
 import type { Job, CanonicalRequest, SignedResponse, Receipt, NeighborhoodResult } from '../types/api.js';
-import { computeNeighborhood, parseComputeOptions, toNeighborhoodResult } from './neighborhood.js';
+import { computeNeighborhood, computeNeighborhoodExtras, parseComputeOptions, toNeighborhoodResult } from './neighborhood.js';
 import { validateNeighborhood } from './validation.js';
 import { computeRequestHash, computeResultHash } from '../crypto/hashing.js';
 import { signResponse } from '../crypto/signing.js';
@@ -363,6 +363,12 @@ async function processLargeIndexJob(
 
   const { gaps, d2, ratios } = computeDerivedSequences(primes, include);
 
+  const extras = computeNeighborhoodExtras(
+    { centerPrime: largeResult.centerPrime, primes, indices, gaps, d2, ratios },
+    request.include,
+    request.modulus,
+  );
+
   const fullResult: NeighborhoodResult = {
     n: request.n,
     n_type: request.n_type,
@@ -375,7 +381,7 @@ async function processLargeIndexJob(
     indices,
   };
 
-  const response = buildSignedResponse(request, filterResult(fullResult, include));
+  const response = buildSignedResponse(request, filterResult(fullResult, include, extras));
 
   await completeJob(kv, job, response);
 }
@@ -459,6 +465,19 @@ async function processAroundValueJobWithState(
     const startIndex = centerIndex > 0 ? centerIndex - k : 0;
     const indices = primes.map((_, i) => startIndex + i);
 
+    const extras = computeNeighborhoodExtras(
+      {
+        centerPrime: BigInt(state.centerPrime!),
+        primes,
+        indices,
+        gaps,
+        d2,
+        ratios,
+      },
+      request.include,
+      request.modulus,
+    );
+
     const fullResult: NeighborhoodResult = {
       n: request.n,
       n_type: request.n_type,
@@ -471,7 +490,7 @@ async function processAroundValueJobWithState(
       indices,
     };
 
-    const response = buildSignedResponse(request, filterResult(fullResult, include));
+    const response = buildSignedResponse(request, filterResult(fullResult, include, extras));
     await completeJob(kv, job, response);
   } else {
     // Update progress with granular info
@@ -495,7 +514,8 @@ async function processStandardJob(
   const request = job.request;
   const options = parseComputeOptions(request);
   const data = computeNeighborhood(options);
-  const result = toNeighborhoodResult(request, data);
+  const extras = computeNeighborhoodExtras(data, request.include, request.modulus);
+  const result = toNeighborhoodResult(request, data, extras);
   const validation = validateNeighborhood(data, request.validate);
 
   let response: SignedResponse;
@@ -593,10 +613,15 @@ async function processStatsOnlyJob(
     await completeJob(kv, job, response);
   } else {
     const total = 2 * k + 1;
-    const progress = state.primesGenerated ? (state.primesGenerated / total) * 100 : 0;
+    // Count both backward-walked primes and forward-replayed/walked primes
+    // so the progress bar advances during the backward phase too.
+    const backwardCount = state.beforePrimes?.length ?? 0;
+    const forwardCount = state.primesGenerated ?? 0;
+    const found = state.phase === 'backward' ? backwardCount : Math.max(forwardCount, backwardCount);
+    const progress = total > 0 ? (found / total) * 100 : 0;
     job.progress = Math.min(100, Math.max(0, Math.round(progress)));
     job.chunksProcessed = state.chunksProcessed;
-    job.primesFound = state.primesGenerated ?? 0;
+    job.primesFound = found;
     job.phase = state.phase === 'backward' ? 'backward' : 'forward';
     if (kv) {
       await kvPutJob(kv, job);
@@ -614,7 +639,13 @@ function computeDerivedSequences(
   d2: bigint[];
   ratios: { num: string; den: string }[];
 } {
-  const needGaps = include.has('gaps') || include.has('d2') || include.has('ratio');
+  const needGaps =
+    include.has('gaps') ||
+    include.has('d2') ||
+    include.has('ratio') ||
+    include.has('merit') ||
+    include.has('cramer') ||
+    include.has('constellations');
   const needD2 = include.has('d2') || include.has('ratio');
   const needRatio = include.has('ratio');
 
@@ -648,11 +679,22 @@ function computeDerivedSequences(
 }
 
 /**
- * Filter a full result to only include fields specified by request.include
+ * Filter a full result to only include fields specified by request.include.
+ * Optional `extras` are spliced in for the new number-theory fields which
+ * live on NeighborhoodExtras rather than the raw NeighborhoodData.
  */
 function filterResult(
   result: NeighborhoodResult,
   include: Set<string>,
+  extras?: {
+    merit?: number[];
+    maxMerit?: { value: number; index: number };
+    cramer?: number[];
+    maxCramer?: { value: number; index: number };
+    residueRace?: NeighborhoodResult['residue_race'];
+    theta?: NeighborhoodResult['theta'];
+    constellations?: NeighborhoodResult['constellations'];
+  },
 ): NeighborhoodResult {
   const filtered: NeighborhoodResult = {
     n: result.n,
@@ -665,6 +707,15 @@ function filterResult(
   if (include.has('d2')) filtered.d2 = result.d2;
   if (include.has('ratio')) filtered.ratio = result.ratio;
   if (include.has('indices')) filtered.indices = result.indices;
+  if (extras) {
+    if (extras.merit) filtered.merit = extras.merit;
+    if (extras.maxMerit) filtered.max_merit = extras.maxMerit;
+    if (extras.cramer) filtered.cramer = extras.cramer;
+    if (extras.maxCramer) filtered.max_cramer = extras.maxCramer;
+    if (extras.residueRace) filtered.residue_race = extras.residueRace;
+    if (extras.theta) filtered.theta = extras.theta;
+    if (extras.constellations) filtered.constellations = extras.constellations;
+  }
   return filtered;
 }
 

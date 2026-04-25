@@ -54,4 +54,15 @@ export type NType = 'index' | 'value';
 export type NeighborhoodMode = 'count' | 'span';
 
 /** Include flags for response */
-export type IncludeField = 'primes' | 'gaps' | 'd2' | 'ratio' | 'indices';
+export type IncludeField =
+  | 'primes'
+  | 'gaps'
+  | 'd2'
+  | 'ratio'
+  | 'indices'
+  | 'merit'
+  | 'cramer'
+  | 'residue'
+  | 'residue_running'
+  | 'theta'
+  | 'constellations';

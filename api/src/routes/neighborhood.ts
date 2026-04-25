@@ -9,7 +9,16 @@ import { Hono } from 'hono';
 import type { Env } from '../types/env.js';
 import type { AuthContext } from '../types/user.js';
 import { NeighborhoodQuerySchema, toCanonicalRequest } from '../schemas/query-params.js';
-import { computeNeighborhood, parseComputeOptions, toNeighborhoodResult } from '../services/neighborhood.js';
+import { computeNeighborhood, computeNeighborhoodExtras, parseComputeOptions, toNeighborhoodResult } from '../services/neighborhood.js';
+import {
+  summarizeMerit,
+  summarizeCramer,
+  summarizeResidueRace,
+  summarizeTheta,
+  summarizeConstellations,
+} from '../services/lib/stats.js';
+import { withAuditSync, type AuditLevel } from '../services/lib/audit.js';
+import { withMeter } from '../services/lib/op-meter.js';
 import { validateNeighborhood } from '../services/validation.js';
 import { computeRequestHash, computeResultHash } from '../crypto/hashing.js';
 import { signResponse } from '../crypto/signing.js';
@@ -55,10 +64,25 @@ neighborhoodRoute.get('/', async (c) => {
     }, 202);
   }
 
-  // Compute neighborhood synchronously
+  // Compute neighborhood synchronously, optionally with verbose audit logging.
   const options = parseComputeOptions(request);
-  const data = computeNeighborhood(options);
-  let result = toNeighborhoodResult(request, data);
+  const verbose = !!query.verbose;
+  const auditLevel = (query.audit_level ?? 'milestone') as AuditLevel;
+
+  const meterRun = withMeter(() =>
+    withAuditSync({ enabled: verbose, level: auditLevel }, () => {
+      const data = computeNeighborhood(options);
+      const extras = computeNeighborhoodExtras(data, request.include, request.modulus);
+      return { data, extras };
+    }),
+  );
+  const auditRun = meterRun.result;
+  const data = auditRun.result.data;
+  const extras = auditRun.result.extras;
+  let result = toNeighborhoodResult(request, data, extras);
+
+  // Stash counters on the context so trackCpuTime middleware can persist them.
+  c.set('opCounters', meterRun.counters);
 
   // Stats-only response (no full lists)
   if (request.stats_only) {
@@ -89,6 +113,41 @@ neighborhoodRoute.get('/', async (c) => {
       stats.ratio = topStats(ratioStrs, topN);
     }
 
+    // Number-theory summaries — preserve research-grade aggregates rather
+    // than dropping the fields wholesale as the previous version did.
+    if (include.has('merit') && extras.merit && extras.maxMerit) {
+      stats.merit = summarizeMerit(
+        data.primes,
+        data.gaps,
+        extras.merit,
+        extras.cramer ?? extras.merit.map(() => 0),
+        topN,
+        extras.maxMerit,
+      );
+    }
+    if (include.has('cramer') && extras.cramer && extras.maxCramer) {
+      stats.cramer = summarizeCramer(
+        data.primes,
+        data.gaps,
+        extras.merit ?? extras.cramer.map(() => 0),
+        extras.cramer,
+        topN,
+        extras.maxCramer,
+      );
+    }
+    if ((include.has('residue') || include.has('residue_running')) && extras.residueRace) {
+      stats.residue = summarizeResidueRace(extras.residueRace, data.primes.length);
+    }
+    if (include.has('theta') && extras.theta) {
+      stats.theta = summarizeTheta(extras.theta, data.primes);
+    }
+    if (include.has('constellations') && extras.constellations) {
+      stats.constellations = summarizeConstellations(extras.constellations, data.primes);
+    }
+
+    // Replace the result with a stats-only shape. Note: the request echo's
+    // `include` is intentionally preserved; consumers of the receipt can see
+    // exactly which fields were summarized vs. omitted.
     result = {
       n: result.n,
       n_type: result.n_type,
@@ -104,10 +163,14 @@ neighborhoodRoute.get('/', async (c) => {
   // Build response based on proof level
   if (request.proof === 'none') {
     // Simple response without proof
-    const response: SignedResponse = {
+    const response: SignedResponse & { audit?: typeof auditRun.events; audit_truncated?: boolean } = {
       request,
       result,
     };
+    if (verbose) {
+      response.audit = auditRun.events;
+      if (auditRun.truncated) response.audit_truncated = true;
+    }
     return c.json(response);
   }
 

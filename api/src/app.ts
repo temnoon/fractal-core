@@ -8,6 +8,7 @@ import { logger } from 'hono/logger';
 
 import type { Env } from './types/env.js';
 import { setKeyStorageKv } from './config/keys.js';
+import { setChunkTimeoutMs } from './services/chunked-sieve.js';
 import { tieredRateLimit, tieredExpensiveRateLimit } from './middleware/rate-limit.js';
 import { authMiddleware } from './middleware/auth.js';
 import { cpuLimitCheck, trackCpuTime } from './middleware/usage.js';
@@ -28,14 +29,22 @@ import { svgRoute } from './routes/svg.js';
 import { usersRoute } from './routes/users.js';
 import { apiKeysRoute } from './routes/api-keys.js';
 import { lppRoute } from './routes/lpp.js';
+import { cosmicPulseRoute } from './routes/cosmic-pulse.js';
+import { constellationsRoute } from './routes/constellations.js';
+import { benchRoute } from './routes/bench.js';
+import { isPrimeRoute } from './routes/isprime.js';
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env }>();
 
-  // Middleware to set up KV bindings for key storage
+  // Middleware to set up KV bindings + tunable chunk budget.
   app.use('*', async (c, next) => {
-    // Set the KV namespace if available (keys are cached across requests)
     setKeyStorageKv(c.env?.KEYS_KV);
+    const envBudget = c.env?.CHUNK_TIMEOUT_MS;
+    if (envBudget) {
+      const parsed = parseInt(envBudget, 10);
+      if (Number.isFinite(parsed)) setChunkTimeoutMs(parsed);
+    }
     await next();
   });
 
@@ -116,6 +125,27 @@ export function createApp() {
   v1.route('/formats', formatsRoute);
   v1.route('/flame', flameRoute);
   v1.route('/svg', svgRoute);
+
+  // Constellation / k-tuple admissibility + bounded forward search
+  v1.use('/constellations', ...expensiveMiddleware);
+  v1.use('/constellations/*', ...expensiveMiddleware);
+  v1.route('/constellations', constellationsRoute);
+
+  // Empirical engine benchmarks — used to tune chunk timeouts.
+  v1.use('/bench', ...expensiveMiddleware);
+  v1.use('/bench/*', ...expensiveMiddleware);
+  v1.route('/bench', benchRoute);
+
+  // Explicit primality test — the metering unit for the future pricing model.
+  v1.use('/isprime', ...expensiveMiddleware);
+  v1.use('/isprime/*', ...expensiveMiddleware);
+  v1.route('/isprime', isPrimeRoute);
+
+  // Cosmic Pulse — the primordial prime clock (CPU-intensive mints).
+  // Registered BEFORE /lpp so the more-specific prefix wins the match.
+  v1.use('/lpp/cosmic', ...expensiveMiddleware);
+  v1.use('/lpp/cosmic/*', ...expensiveMiddleware);
+  v1.route('/lpp/cosmic', cosmicPulseRoute);
 
   // LPP routes (Lamish Pulse Protocol)
   v1.route('/lpp', lppRoute);

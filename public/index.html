@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Prime Terrain - Prime Neighborhood Explorer</title>
+  <link rel="stylesheet" href="design-tokens.css">
   <style>
     body {
-      font-family: serif;
-      background: #ffffff;
-      color: #000000;
+      font-family: var(--font-paper-serif);
+      background: var(--paper-bg);
+      color: var(--paper-fg);
       margin: 0;
       padding: 0;
     }
@@ -26,14 +27,14 @@
       text-align: center;
       margin: 20px 0;
       padding: 15px;
-      background: #f5f5f5;
-      border: 1px solid #ccc;
+      background: var(--paper-surface-1);
+      border: var(--border-hair) solid var(--paper-border);
     }
     .searchbox input[type="text"] {
       width: 300px;
       padding: 5px;
       font-size: 14px;
-      font-family: monospace;
+      font-family: var(--font-paper-mono);
     }
     .searchbox select {
       padding: 4px;
@@ -54,13 +55,13 @@
     }
     .links a {
       margin: 0 10px;
-      color: #0000cc;
+      color: var(--paper-link);
     }
     .result {
       margin: 20px 0;
       padding: 15px;
-      background: #fafafa;
-      border: 1px solid #ddd;
+      background: var(--paper-surface-2);
+      border: var(--border-hair) solid var(--paper-border-2);
       overflow: hidden;
       word-wrap: break-word;
       overflow-wrap: break-word;
@@ -68,17 +69,17 @@
     .result h2 {
       font-size: 1.2em;
       margin: 0 0 10px 0;
-      border-bottom: 1px solid #ccc;
+      border-bottom: var(--border-hair) solid var(--paper-border);
       padding-bottom: 5px;
     }
     .result pre {
-      font-family: monospace;
+      font-family: var(--font-paper-mono);
       font-size: 13px;
       white-space: pre-wrap;
       word-wrap: break-word;
-      background: #fff;
+      background: var(--paper-bg);
       padding: 10px;
-      border: 1px solid #eee;
+      border: var(--border-hair) solid var(--paper-border-3);
       overflow-x: auto;
     }
     .sequence-line {
@@ -88,11 +89,11 @@
     }
     .sequence-label {
       font-weight: bold;
-      color: #333;
+      color: var(--paper-fg-subtle);
     }
     .sequence-data {
-      font-family: monospace;
-      color: #000;
+      font-family: var(--font-paper-mono);
+      color: var(--paper-fg);
       word-wrap: break-word;
       overflow-wrap: break-word;
       display: block;
@@ -100,25 +101,25 @@
     }
     .meta {
       font-size: 12px;
-      color: #666;
+      color: var(--paper-fg-muted);
       margin-top: 10px;
     }
     .footer {
       text-align: center;
       margin: 30px 0;
       padding: 15px;
-      border-top: 1px solid #ccc;
+      border-top: var(--border-hair) solid var(--paper-border);
       font-size: 12px;
-      color: #666;
+      color: var(--paper-fg-muted);
     }
     .footer a {
-      color: #0000cc;
+      color: var(--paper-link);
     }
     .error {
-      color: #cc0000;
+      color: var(--paper-error);
       padding: 10px;
-      background: #fff0f0;
-      border: 1px solid #ffcccc;
+      background: var(--paper-error-bg);
+      border: var(--border-hair) solid var(--paper-error-bd);
     }
     .export-links {
       margin-top: 10px;
@@ -126,32 +127,32 @@
     }
     .export-links a {
       margin-right: 10px;
-      color: #0066cc;
+      color: var(--paper-link-2);
     }
     table.data {
       border-collapse: collapse;
-      font-family: monospace;
+      font-family: var(--font-paper-mono);
       font-size: 13px;
       margin: 10px 0;
     }
     table.data th, table.data td {
-      border: 1px solid #ccc;
+      border: var(--border-hair) solid var(--paper-border);
       padding: 4px 8px;
       text-align: right;
     }
     table.data th {
-      background: #f0f0f0;
+      background: var(--paper-surface-3);
     }
     .related {
       font-size: 12px;
-      color: #666;
+      color: var(--paper-fg-muted);
     }
     .related a {
-      color: #0066cc;
+      color: var(--paper-link-2);
     }
   </style>
 </head>
-<body>
+<body data-world="paper">
   <div class="center">
     <h1>Prime Terrain</h1>
     <p style="text-align:center;color:#666;margin-top:-15px;">Prime Neighborhood Explorer</p>
@@ -203,6 +204,15 @@
           <label><input type="checkbox" id="statRatios" checked> Ratios</label>
         </p>
         <p>
+          <label>Number theory:</label>
+          <label><input type="checkbox" id="ntMerit"> Merit</label>
+          <label><input type="checkbox" id="ntCramer"> Cramér</label>
+          <label><input type="checkbox" id="ntResidue"> Residue race</label>
+          <label>mod <input type="number" id="ntModulus" value="4" min="2" max="1000" size="4" style="width:4em"></label>
+          <label><input type="checkbox" id="ntTheta"> θ(x)</label>
+          <label><input type="checkbox" id="ntConstellations"> Constellations</label>
+        </p>
+        <p>
           <span class="meta">Note: Full lists are hidden on the page when k &gt; 1000. Use downloads below for large results.</span>
         </p>
         <p>
@@ -247,11 +257,25 @@
       <a href="#" onclick="showSequence('d2')">A036263 (Second diff)</a>
       <a href="#" onclick="showSequence('ratios')">Ratios (novel)</a>
     </div>
+    <div class="links" style="margin-top:6px;">
+      <b>Number-theory references:</b>
+      <a href="https://oeis.org/A001359" target="_blank">A001359 (twin)</a>
+      <a href="https://oeis.org/A023200" target="_blank">A023200 (cousin)</a>
+      <a href="https://oeis.org/A023201" target="_blank">A023201 (sexy)</a>
+      <a href="https://oeis.org/A007530" target="_blank">A007530 (quadruplet)</a>
+      <a href="https://oeis.org/A022008" target="_blank">A022008 (sextuplet)</a>
+      <a href="https://oeis.org/A007350" target="_blank">A007350 (Chebyshev sign changes)</a>
+      <a href="https://oeis.org/A083409" target="_blank">A083409 (θ deviation)</a>
+    </div>
 
     <div class="footer">
       <div class="links">
         <a href="visualizations.html">Data Visualizations</a>
         <a href="simulation.html">Physics Simulation</a>
+        <a href="flames.html">Flame Fractals</a>
+        <a href="svg.html">SVG Gallery</a>
+        <a href="player.html">Flame Player</a>
+        <a href="rho.html">Noema-Rho Reader</a>
         <a href="https://api.fractal-core.com/api/v1/status" target="_blank">API Status</a>
         <a href="https://api.fractal-core.com/api/v1/capabilities" target="_blank">API Capabilities</a>
         <a href="https://api.fractal-core.com/api/v1/oeis" target="_blank">OEIS Endpoints</a>
@@ -263,7 +287,9 @@
       <p>
         Related: <a href="https://oeis.org/A000040">OEIS A000040</a> (Primes),
         <a href="https://oeis.org/A001223">A001223</a> (Gaps),
-        <a href="https://oeis.org/A036263">A036263</a> (Second differences)
+        <a href="https://oeis.org/A036263">A036263</a> (Second differences),
+        <a href="https://oeis.org/A001359">A001359</a> (Twin primes),
+        <a href="https://oeis.org/A007350">A007350</a> (Chebyshev sign changes)
       </p>
     </div>
   </div>
@@ -293,10 +319,21 @@
 
     function computeInclude() {
       const include = new Set(document.getElementById('queryInclude').value.split(','));
+      const summaryOnly = document.getElementById('querySummaryOnly').checked;
       if (document.getElementById('statGaps').checked || document.getElementById('dlGaps').checked) include.add('gaps');
       if (document.getElementById('statD2').checked || document.getElementById('dlD2').checked) include.add('d2');
       if (document.getElementById('statRatios').checked || document.getElementById('dlRatios').checked) include.add('ratio');
       if (document.getElementById('dlPrimes').checked) include.add('primes');
+      if (document.getElementById('ntMerit').checked) include.add('merit');
+      if (document.getElementById('ntCramer').checked) include.add('cramer');
+      if (document.getElementById('ntResidue').checked) {
+        include.add('residue');
+        // In stats mode the running cumulative is what gives us dominance % +
+        // lead-change count, the diagnostics that make a race interesting.
+        if (summaryOnly) include.add('residue_running');
+      }
+      if (document.getElementById('ntTheta').checked) include.add('theta');
+      if (document.getElementById('ntConstellations').checked) include.add('constellations');
       return Array.from(include).join(',');
     }
 
@@ -320,6 +357,10 @@
         params.set('n_type', nType);
         params.set('k', k);
         params.set('include', include);
+        if (include.indexOf('residue') !== -1) {
+          const mod = document.getElementById('ntModulus').value;
+          if (mod) params.set('modulus', mod);
+        }
         if (statsOnly) {
           params.set('stats_only', '1');
           params.set('top_n', topN);
@@ -347,7 +388,7 @@
 
     async function pollJob(jobId, n, nType, k, include) {
       const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = '<p><strong>pending</strong> 0%<div style="background:#1a1a2e;border-radius:4px;height:8px;margin:8px 0;overflow:hidden"><div style="background:linear-gradient(90deg,#4a9eff,#7c3aed);height:100%;width:0%;transition:width 0.5s ease"></div></div>Job queued. Computing neighborhood...</p>';
+      resultsDiv.innerHTML = '<p><strong>pending</strong> 0%<div style="background:var(--console-bg-card,#1a1a2e);border-radius:var(--radius-sm,4px);height:8px;margin:8px 0;overflow:hidden"><div style="background:var(--bg-progress,linear-gradient(90deg,#4a9eff,#7c3aed));height:100%;width:0%;transition:width 0.5s ease"></div></div>Job queued. Computing neighborhood...</p>';
 
       const pollUrl = `${API}/jobs/${jobId}`;
       const resultUrl = `${API}/jobs/${jobId}/result`;
@@ -390,7 +431,7 @@
 
           // Build progress bar
           const pct = Math.round(progress);
-          const bar = `<div style="background:#1a1a2e;border-radius:4px;height:8px;margin:8px 0;overflow:hidden"><div style="background:linear-gradient(90deg,#4a9eff,#7c3aed);height:100%;width:${pct}%;transition:width 0.5s ease"></div></div>`;
+          const bar = `<div style="background:var(--console-bg-card,#1a1a2e);border-radius:var(--radius-sm,4px);height:8px;margin:8px 0;overflow:hidden"><div style="background:var(--bg-progress,linear-gradient(90deg,#4a9eff,#7c3aed));height:100%;width:${pct}%;transition:width 0.5s ease"></div></div>`;
 
           // Phase description
           let phaseLabel = '';
@@ -448,6 +489,93 @@
       return html;
     }
 
+    /** Top-N gap-merit table — the form gap-hunters cite in papers. */
+    function renderMeritTable(label, stats, sortKey) {
+      if (!stats || !stats.top || stats.top.length === 0) return '';
+      let html = `<div class="sequence-line"><span class="sequence-label">${label}:</span></div>`;
+      html += '<table class="data"><tr><th>#</th><th>p<sub>n</sub></th><th>p<sub>n+1</sub></th><th>gap</th><th>merit</th><th>Cramér</th></tr>';
+      for (const e of stats.top) {
+        html += `<tr><td>${e.rank}</td><td>${e.p}</td><td>${e.p_next}</td><td>${e.gap}</td><td>${e.merit.toFixed(4)}</td><td>${e.cramer.toFixed(4)}</td></tr>`;
+      }
+      html += '</table>';
+      const max = stats.max;
+      html += `<div class="related">Max ${sortKey === 'cramer' ? 'Cramér' : 'merit'}: <b>${max.value.toFixed(4)}</b> at gap index ${max.index} | mean: ${stats.mean.toFixed(4)}</div>`;
+      if (stats.histogram) {
+        html += '<div class="sequence-line" style="margin-top:6px;"><span class="sequence-label">Merit distribution:</span></div>';
+        html += '<table class="data"><tr><th>bin</th><th>count</th><th>%</th></tr>';
+        for (const b of stats.histogram) {
+          html += `<tr><td>${b.bin}</td><td>${b.count}</td><td>${b.pct}</td></tr>`;
+        }
+        html += '</table>';
+      }
+      return html;
+    }
+
+    /** Residue race counts + dominance + lead changes (Chebyshev's bias). */
+    function renderResidueStats(stats) {
+      if (!stats) return '';
+      const rows = Object.keys(stats.counts).sort((a, b) => Number(a) - Number(b));
+      let html = `<div class="sequence-line"><span class="sequence-label">Residue race (mod ${stats.modulus}):</span></div>`;
+      html += '<table class="data"><tr><th>residue</th><th>count</th><th>%</th>';
+      if (stats.dominance) html += '<th>led</th>';
+      html += '</tr>';
+      for (const r of rows) {
+        html += `<tr><td>[${r}]${r === stats.leader ? ' ★' : ''}</td><td>${stats.counts[r]}</td><td>${stats.pct[r] ?? 0}</td>`;
+        if (stats.dominance) html += `<td>${stats.dominance[r] ?? 0}%</td>`;
+        html += '</tr>';
+      }
+      html += '</table>';
+      let foot = `Leader: residue <b>${stats.leader}</b>`;
+      if (typeof stats.lead_changes === 'number') foot += ` | lead changes: <b>${stats.lead_changes}</b>`;
+      foot += ' (Chebyshev’s bias) — see <a href="https://oeis.org/A007350" target="_blank">A007350</a>';
+      html += `<div class="related">${foot}</div>`;
+      return html;
+    }
+
+    /** Theta function summary with optional log-spaced checkpoints. */
+    function renderThetaStats(stats) {
+      if (!stats) return '';
+      let html = '<div class="sequence-line"><span class="sequence-label">Chebyshev θ(x) = Σ ln(p):</span></div>';
+      html += '<table class="data"><tr><th>quantity</th><th>value</th></tr>';
+      html += `<tr><td>total</td><td>${stats.total.toFixed(4)}</td></tr>`;
+      html += `<tr><td>deviation θ − x</td><td>${stats.deviation.toFixed(4)}</td></tr>`;
+      if (typeof stats.deviation_normalized === 'number') {
+        html += `<tr><td>(θ − x) / √x</td><td>${stats.deviation_normalized.toFixed(4)}</td></tr>`;
+      }
+      html += `<tr><td>n primes summed</td><td>${stats.n_primes}</td></tr>`;
+      html += `<tr><td>p<sub>first</sub></td><td>${stats.p_first}</td></tr>`;
+      html += `<tr><td>p<sub>last</sub></td><td>${stats.p_last}</td></tr>`;
+      html += '</table>';
+      if (!stats.starts_at_two) {
+        html += '<div class="related"><i>Note: this neighborhood does not start at p = 2, so <code>total</code> is the partial sum over the queried window — not global θ(p<sub>last</sub>). Set n=1 (by index) for a true PNT comparison.</i></div>';
+      }
+      if (stats.sampled && stats.sampled.length > 0) {
+        html += '<div class="sequence-line" style="margin-top:6px;"><span class="sequence-label">Sampled trajectory (log-spaced):</span></div>';
+        html += '<table class="data"><tr><th>i</th><th>θ at p<sub>i</sub></th></tr>';
+        for (const c of stats.sampled) {
+          html += `<tr><td>${c.index}</td><td>${c.value.toFixed(4)}</td></tr>`;
+        }
+        html += '</table>';
+      }
+      return html;
+    }
+
+    /** Constellation per-pattern table with OEIS cross-links. */
+    function renderConstellationStats(stats) {
+      if (!stats || stats.length === 0) {
+        return '<div class="sequence-line"><span class="sequence-label">Constellations:</span> <span class="sequence-data">none in this neighborhood</span></div>';
+      }
+      let html = '<div class="sequence-line"><span class="sequence-label">Constellations:</span></div>';
+      html += '<table class="data"><tr><th>pattern</th><th>signature</th><th>count</th><th>density / Δ ln x</th><th>first idx</th><th>last idx</th><th>OEIS</th></tr>';
+      for (const c of stats) {
+        const density = typeof c.density_per_log_x === 'number' ? c.density_per_log_x.toFixed(4) : '—';
+        const oeis = c.oeis ? `<a href="https://oeis.org/${c.oeis}" target="_blank">${c.oeis}</a>` : '—';
+        html += `<tr><td>${c.pattern_name}</td><td>[${c.signature.join(',')}]</td><td>${c.count}</td><td>${density}</td><td>${c.first_position ?? '—'}</td><td>${c.last_position ?? '—'}</td><td>${oeis}</td></tr>`;
+      }
+      html += '</table>';
+      return html;
+    }
+
     function formatListValues(seq, type) {
       if (!seq) return '';
       if (type === 'ratio') return seq.map(r => r.num + '/' + r.den);
@@ -460,6 +588,97 @@
 
     function buildBFileContent(values, offset = 1) {
       return values.map((v, i) => `${i + offset} ${v}`).join('\n');
+    }
+
+    /**
+     * Download a number-theory result as CSV or JSON.
+     * Pulls from r.stats.X when present (stats-only) or the full r.X array.
+     */
+    function downloadNT(field, format) {
+      if (!window._lastNeighborhood) return;
+      const r = window._lastNeighborhood.data.result;
+      const prefix = (document.getElementById('filePrefix').value.trim() || 'prime_terrain');
+      const filename = `${prefix}_${field}.${format}`;
+
+      let payload = null;
+      if (r.stats && r.stats[field]) {
+        payload = r.stats[field];
+      } else {
+        if (field === 'merit') payload = { values: r.merit, max: r.max_merit };
+        else if (field === 'cramer') payload = { values: r.cramer, max: r.max_cramer };
+        else if (field === 'residue') payload = r.residue_race;
+        else if (field === 'theta') payload = r.theta;
+        else if (field === 'constellations') payload = r.constellations;
+      }
+      if (!payload) return;
+
+      let content;
+      if (format === 'json') {
+        content = JSON.stringify(payload, null, 2);
+      } else {
+        content = ntToCsv(field, payload, r);
+      }
+      const blob = new Blob([content], { type: format === 'json' ? 'application/json' : 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      a.remove();
+    }
+
+    function ntToCsv(field, payload, result) {
+      if (field === 'merit' || field === 'cramer') {
+        if (payload.top) {
+          const rows = ['rank,index,p,p_next,gap,merit,cramer'];
+          for (const e of payload.top) rows.push(`${e.rank},${e.index},${e.p},${e.p_next},${e.gap},${e.merit},${e.cramer}`);
+          return rows.join('\n');
+        }
+        // Full array; pair with primes/gaps for context.
+        const rows = ['index,p,p_next,gap,value'];
+        const primes = result.primes || [];
+        const gaps = result.gaps || [];
+        const arr = payload.values || payload;
+        for (let i = 0; i < arr.length; i++) {
+          rows.push(`${i},${primes[i] ?? ''},${primes[i+1] ?? ''},${gaps[i] ?? ''},${arr[i]}`);
+        }
+        return rows.join('\n');
+      }
+      if (field === 'residue') {
+        const rows = ['residue,count,pct'];
+        const pct = payload.pct || {};
+        for (const [k, v] of Object.entries(payload.counts || {})) {
+          rows.push(`${k},${v},${pct[k] ?? ''}`);
+        }
+        return rows.join('\n');
+      }
+      if (field === 'theta') {
+        const rows = ['quantity,value'];
+        rows.push(`total,${payload.total}`);
+        rows.push(`deviation,${payload.deviation}`);
+        if (typeof payload.deviation_normalized === 'number') rows.push(`deviation_normalized,${payload.deviation_normalized}`);
+        if (payload.values) {
+          for (let i = 0; i < payload.values.length; i++) rows.push(`theta_${i},${payload.values[i]}`);
+        } else if (payload.sampled) {
+          for (const c of payload.sampled) rows.push(`theta_${c.index},${c.value}`);
+        }
+        return rows.join('\n');
+      }
+      if (field === 'constellations') {
+        // payload may be ConstellationStat[] (stats) or ConstellationMatch[] (full).
+        const isStats = Array.isArray(payload) && payload.length > 0 && 'count' in payload[0];
+        if (isStats) {
+          const rows = ['pattern_name,signature,count,density_per_log_x,first_position,last_position,oeis'];
+          for (const c of payload) rows.push(`${c.pattern_name},"${c.signature.join(' ')}",${c.count},${c.density_per_log_x ?? ''},${c.first_position ?? ''},${c.last_position ?? ''},${c.oeis ?? ''}`);
+          return rows.join('\n');
+        }
+        const rows = ['pattern_name,signature,positions'];
+        for (const c of payload) rows.push(`${c.pattern_name},"${c.signature.join(' ')}","${c.positions.join(' ')}"`);
+        return rows.join('\n');
+      }
+      return JSON.stringify(payload);
     }
 
     function downloadSequence(seqKey, format) {
@@ -633,6 +852,77 @@
         }
       }
 
+      // ── Number theory extras ─────────────────────────────────────────
+      // Merit
+      if (r.stats && r.stats.merit) {
+        html += renderMeritTable('Merit g / ln(p) — top entries', r.stats.merit, 'merit');
+      } else if (r.merit && !showSummaryOnly && (Number.isNaN(kNum) || kNum <= 1000)) {
+        html += '<div class="sequence-line">';
+        html += '<span class="sequence-label">Merit g/ln(p):</span> ';
+        html += '<span class="sequence-data">' + r.merit.map(m => m.toFixed(3)).join(', ') + '</span>';
+        html += '</div>';
+        if (r.max_merit) {
+          html += `<div class="related">Max merit: <b>${r.max_merit.value.toFixed(3)}</b> at gap index ${r.max_merit.index}</div>`;
+        }
+      } else if (r.max_merit) {
+        html += `<div class="sequence-line"><span class="sequence-label">Max merit:</span> <b>${r.max_merit.value.toFixed(3)}</b> at gap index ${r.max_merit.index}</div>`;
+      }
+
+      // Cramér ratio
+      if (r.stats && r.stats.cramer) {
+        html += renderMeritTable('Cramér g / ln²(p) — top entries', r.stats.cramer, 'cramer');
+      } else if (r.cramer && !showSummaryOnly && (Number.isNaN(kNum) || kNum <= 1000)) {
+        html += '<div class="sequence-line">';
+        html += '<span class="sequence-label">Cramér g/ln²(p):</span> ';
+        html += '<span class="sequence-data">' + r.cramer.map(m => m.toFixed(4)).join(', ') + '</span>';
+        html += '</div>';
+        if (r.max_cramer) {
+          html += `<div class="related">Max Cramér ratio: <b>${r.max_cramer.value.toFixed(4)}</b> at gap index ${r.max_cramer.index}</div>`;
+        }
+      } else if (r.max_cramer) {
+        html += `<div class="sequence-line"><span class="sequence-label">Max Cramér:</span> <b>${r.max_cramer.value.toFixed(4)}</b> at gap index ${r.max_cramer.index}</div>`;
+      }
+
+      // Residue race
+      if (r.stats && r.stats.residue) {
+        html += renderResidueStats(r.stats.residue);
+      } else if (r.residue_race) {
+        const rr = r.residue_race;
+        const entries = Object.entries(rr.counts).sort((a, b) => Number(a[0]) - Number(b[0]));
+        html += '<div class="sequence-line">';
+        html += `<span class="sequence-label">Residue race (mod ${rr.modulus}):</span> `;
+        html += '<span class="sequence-data">' + entries.map(([k, v]) => `[${k}]=${v}`).join(', ') + '</span>';
+        html += '</div>';
+        html += `<div class="related">Leader: residue <b>${rr.leader}</b> (Chebyshev bias) — see <a href="https://oeis.org/A007350" target="_blank">A007350</a></div>`;
+      }
+
+      // Theta
+      if (r.stats && r.stats.theta) {
+        html += renderThetaStats(r.stats.theta);
+      } else if (r.theta) {
+        html += '<div class="sequence-line">';
+        html += `<span class="sequence-label">Chebyshev θ(x) = Σln(p):</span> total <b>${r.theta.total.toFixed(3)}</b>, deviation from PNT <b>${r.theta.deviation.toFixed(3)}</b>`;
+        html += '</div>';
+      }
+
+      // Constellations
+      if (r.stats && r.stats.constellations) {
+        html += renderConstellationStats(r.stats.constellations);
+      } else if (r.constellations) {
+        html += '<div class="sequence-line">';
+        html += '<span class="sequence-label">Constellations:</span>';
+        if (r.constellations.length === 0) {
+          html += ' <span class="sequence-data">none detected in neighborhood</span>';
+        } else {
+          html += '<ul style="margin:4px 0 0 1em;padding:0;">';
+          for (const c of r.constellations) {
+            html += `<li><b>${c.pattern_name}</b> [${c.signature.join(',')}]: ${c.positions.length} match${c.positions.length===1?'':'es'} at positions ${c.positions.slice(0,10).join(', ')}${c.positions.length>10?'…':''}</li>`;
+          }
+          html += '</ul>';
+        }
+        html += '</div>';
+      }
+
       // Export links
       html += '<div class="export-links">';
       html += '<b>Export:</b> ';
@@ -666,6 +956,28 @@
           html += ` <a href="#" onclick="downloadSequence('ratio','list')">Ratios list</a>`;
           html += ` <a href="#" onclick="downloadSequence('ratio','bfile')">Ratios b-file</a>`;
         }
+      }
+
+      // Number-theory CSV/JSON downloads (always offered when the field is present)
+      if (r.merit || r.cramer || r.residue_race || r.theta || r.constellations || (r.stats && (r.stats.merit || r.stats.cramer || r.stats.residue || r.stats.theta || r.stats.constellations))) {
+        html += '<div style="margin-top:6px"><b>Number theory:</b> ';
+        if (r.merit || (r.stats && r.stats.merit)) {
+          html += ` <a href="#" onclick="downloadNT('merit','csv');return false">merit CSV</a>`;
+          html += ` <a href="#" onclick="downloadNT('merit','json');return false">merit JSON</a>`;
+        }
+        if (r.cramer || (r.stats && r.stats.cramer)) {
+          html += ` <a href="#" onclick="downloadNT('cramer','csv');return false">Cramér CSV</a>`;
+        }
+        if (r.residue_race || (r.stats && r.stats.residue)) {
+          html += ` <a href="#" onclick="downloadNT('residue','csv');return false">residue CSV</a>`;
+        }
+        if (r.theta || (r.stats && r.stats.theta)) {
+          html += ` <a href="#" onclick="downloadNT('theta','csv');return false">θ CSV</a>`;
+        }
+        if (r.constellations || (r.stats && r.stats.constellations)) {
+          html += ` <a href="#" onclick="downloadNT('constellations','csv');return false">constellations CSV</a>`;
+        }
+        html += '</div>';
       }
       html += '</div>';
 
@@ -804,6 +1116,19 @@
     });
     document.getElementById('filePrefix').addEventListener('input', function() {
       updateDefaultFilenames(document.getElementById('queryK').value);
+    });
+
+    // Number-theory checkboxes: fire a fresh fetch so new fields are requested.
+    ['ntMerit','ntCramer','ntResidue','ntTheta','ntConstellations','ntModulus'].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const evt = el.type === 'number' ? 'change' : 'change';
+      el.addEventListener(evt, function() {
+        const n = document.getElementById('queryN').value;
+        const nType = document.getElementById('queryType').value;
+        const k = document.getElementById('queryK').value;
+        fetchNeighborhood(n, nType, k, computeInclude());
+      });
     });
 
     // Load default on page load

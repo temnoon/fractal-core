@@ -8,6 +8,19 @@
  * Reference: https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test
  */
 
+import { alignUp, alignDown, step, stepBack, WHEEL_INFO } from '../lib/wheel.js';
+import { logAudit, ifAuditing } from '../lib/audit.js';
+import { recordIsPrime, recordNextPrime } from '../lib/op-meter.js';
+
+/** Small primes the wheel itself eliminates — handle the cases a wheel skips. */
+const WHEEL_BASE_PRIMES: bigint[] = [...WHEEL_INFO.primes];
+
+/** Approximate bit length for audit logs without paying for full toString. */
+function bitsOf(n: bigint): number {
+  if (n <= 0n) return 0;
+  return n.toString(2).length;
+}
+
 export interface BpswEngine {
   /** Check if value is prime (BPSW test) */
   isPrime(n: bigint): boolean;
@@ -30,6 +43,17 @@ export interface BpswEngine {
 
 /**
  * Modular exponentiation: (base^exp) mod mod
+ *
+ * Strategy comparison from `api/scripts/bench-modpow.mjs`:
+ *   bits   native    Barrett   Montgomery (target)
+ *   2048    11ms       10ms     ~7ms (1.5×)
+ *   4096   ~80ms      ~70ms     ~50ms
+ *   8192  ~600ms     ~520ms    ~400ms
+ *
+ * Native BigInt `%` is competitive with Barrett up through ~1k bits; Montgomery
+ * is the lever that pays off beyond 2k. Pure-JS Montgomery has been hand-rolled
+ * but had a Newton-inverse bug (see scripts/bench-modpow.mjs); for 8K-bit work
+ * we should land Wasm Montgomery rather than try to fix the JS version.
  */
 function modPow(base: bigint, exp: bigint, mod: bigint): bigint {
   if (mod === 1n) return 0n;
@@ -298,39 +322,78 @@ export function createBpswEngine(): BpswEngine {
 
     isPrime(n: bigint): boolean {
       if (n < 2n) return false;
+      const nBits = bitsOf(n);
+      recordIsPrime(nBits);
       if (n === 2n) return true;
-      if (n % 2n === 0n) return false;
+      if (n % 2n === 0n) {
+        ifAuditing(() => logAudit('trial-division', 'milestone', 'rejected: even', { n_bits: nBits }));
+        return false;
+      }
+
+      ifAuditing(() => logAudit('isprime', 'milestone', 'BPSW start', { n_bits: nBits }));
 
       // Trial division with small primes
       for (const p of SMALL_PRIMES) {
-        if (n === p) return true;
-        if (n % p === 0n) return false;
+        if (n === p) {
+          ifAuditing(() => logAudit('trial-division', 'milestone', `equal to small prime ${p}`));
+          return true;
+        }
+        if (n % p === 0n) {
+          ifAuditing(() => logAudit('trial-division', 'milestone', `composite: divisible by ${p}`));
+          return false;
+        }
       }
+      ifAuditing(() => logAudit('trial-division', 'milestone', 'passed small-prime trial division', { tested: SMALL_PRIMES.length }));
 
       // BPSW test:
       // 1. Miller-Rabin with base 2
       if (!millerRabinBase2(n)) {
+        ifAuditing(() => logAudit('miller-rabin', 'milestone', 'failed strong probable prime base 2'));
         return false;
       }
+      ifAuditing(() => logAudit('miller-rabin', 'milestone', 'passed strong probable prime base 2'));
 
       // 2. Strong Lucas probable prime test
       if (!lucasTest(n)) {
+        ifAuditing(() => logAudit('lucas', 'milestone', 'failed strong Lucas probable prime'));
         return false;
       }
+      ifAuditing(() => logAudit('lucas', 'milestone', 'passed strong Lucas probable prime'));
 
+      ifAuditing(() => logAudit('isprime', 'milestone', 'BPSW: prime'));
       return true;
     },
 
     nextPrime(n: bigint): bigint {
+      recordNextPrime();
       if (n <= 2n) return 2n;
 
-      let candidate = n % 2n === 0n ? n + 1n : n;
+      // Hand back any wheel-base prime exactly. Wheel-coprime alignment
+      // would otherwise step over them.
+      for (const p of WHEEL_BASE_PRIMES) {
+        if (n <= p) return p;
+      }
+
+      let { value: candidate, idx } = alignUp(n);
+      while (candidate < n) ({ value: candidate, idx } = step(candidate, idx));
+
+      let candidatesTested = 0;
+      ifAuditing(() => logAudit('nextprime', 'milestone', 'nextPrime walk start', {
+        from_bits: bitsOf(n),
+        first_candidate: candidate.toString(),
+      }));
 
       while (true) {
+        candidatesTested++;
         if (this.isPrime(candidate)) {
+          ifAuditing(() => logAudit('nextprime', 'milestone', 'nextPrime found', {
+            prime_bits: bitsOf(candidate),
+            candidates_tested: candidatesTested,
+            wheel_base: Number(WHEEL_INFO.base),
+          }));
           return candidate;
         }
-        candidate += 2n;
+        ({ value: candidate, idx } = step(candidate, idx));
       }
     },
 
@@ -338,15 +401,29 @@ export function createBpswEngine(): BpswEngine {
       if (n <= 2n) return 2n;
       if (n === 3n) return 2n;
 
-      let candidate = n % 2n === 0n ? n - 1n : n;
-
-      while (candidate > 2n) {
-        if (this.isPrime(candidate)) {
-          return candidate;
+      // Reverse-handoff for the small wheel-base primes themselves.
+      const reversed = [...WHEEL_BASE_PRIMES].reverse();
+      for (const p of reversed) {
+        if (n === p) {
+          // Pick the next-smaller prime in the small set.
+          const idx = WHEEL_BASE_PRIMES.indexOf(p);
+          return idx > 0 ? WHEEL_BASE_PRIMES[idx - 1] : 2n;
         }
-        candidate -= 2n;
       }
 
+      let { value: candidate, idx } = alignDown(n);
+      while (candidate > n) ({ value: candidate, idx } = stepBack(candidate, idx));
+
+      // Fall back to small primes if we underflow the wheel.
+      while (candidate > WHEEL_INFO.primes[WHEEL_INFO.primes.length - 1]) {
+        if (this.isPrime(candidate)) return candidate;
+        ({ value: candidate, idx } = stepBack(candidate, idx));
+      }
+
+      // Below the wheel — return largest small prime ≤ candidate.
+      for (let i = reversed.length - 1; i >= 0; i--) {
+        if (reversed[i] <= n) return reversed[i];
+      }
       return 2n;
     },
 
