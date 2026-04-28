@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terrain — fractal-core</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #11161f;
+    --panel-2: #161c28;
+    --line: #232a3a;
+    --ink: #e5e9f2;
+    --dim: #8993a8;
+    --accent: #7ec8e3;
+    --accent-2: #ffb86c;
+  }
+  html, body { background: var(--bg); color: var(--ink); margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; line-height: 1.6; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace; background: var(--panel-2); padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; overflow-x: auto; font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace; font-size: 12px; line-height: 1.5; }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 24px 60px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 36px; }
+  header h1 { font-size: 22px; margin: 0; font-weight: 500; letter-spacing: 0.02em; }
+  header h1 small { color: var(--dim); font-weight: 400; margin-left: 12px; font-size: 14px; }
+  header .nav a { margin-left: 16px; font-size: 14px; }
+
+  h2 { font-size: 18px; margin: 36px 0 12px; font-weight: 500; }
+  h3 { font-size: 14px; margin: 18px 0 8px; font-weight: 500; color: var(--accent); }
+
+  .hero {
+    background: linear-gradient(135deg, rgba(126, 200, 227, 0.08), rgba(255, 184, 108, 0.04));
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 26px;
+    margin-bottom: 28px;
+  }
+  .hero p { font-size: 15px; margin: 0 0 12px 0; }
+  .hero p:last-child { margin: 0; }
+
+  .systems { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; margin: 16px 0; }
+  @media (max-width: 720px) { .systems { grid-template-columns: 1fr; } }
+  .systems .system {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px;
+  }
+  .systems .system h3 { margin: 0 0 4px; }
+  .systems .system .meta { color: var(--dim); font-size: 12px; line-height: 1.5; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; }
+
+  .endpoints { font-size: 13px; }
+  .endpoints code { display: block; padding: 8px 12px; margin: 4px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
+
+  footer { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--dim); font-size: 12px; }
+  .col2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .col2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>fractal-core/terrain <small>temporal standards for the humanizer family</small></h1>
+    <nav class="nav">
+      <a href="/pulse.html">Pulse</a>
+      <a href="/visualizations.html">Visualizations</a>
+      <a href="/index.html">Explorer</a>
+      <a href="https://api.fractal-core.com/api/v1/status">API</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <p>
+      <strong>fractal-core is the canonical pulse server</strong> for the humanizer family of web services
+      — humanizer.com, post-social.com, gravity-press.com, temnoon.com — and any federated operator that
+      adopts the protocol. Every act of communication can be stamped with a signed pulse: a cosmic clock
+      value <code>T</code> bound to a freshly-minted prime <code>P</code>.
+    </p>
+    <p>
+      The math is open. The signing is Ed25519. The interface uses no AI agent at runtime.
+    </p>
+  </div>
+
+  <h2>What a pulse is</h2>
+  <p>
+    Pick an anchor (a moment in time you all agree existed). Pick a tick unit (Planck time, an Earth day,
+    a Yad-second, a millisecond). The clock value <code>T</code> is the integer number of ticks since the
+    anchor. <code>T</code> is monotonic, deterministic, and identical for every observer — that's all a
+    clock needs to be.
+  </p>
+  <p>
+    The minted prime <code>P</code> is a separate value. Each mint draws a uniform random number from a
+    2<sup>120</sup>-wide window in a chosen bit-class, then climbs by 2 until Baillie–PSW confirms a
+    prime. Two mints during the same tick produce different <code>P</code> with overwhelming probability,
+    so <code>P</code> uniquely identifies the act of minting; <code>T</code> orders mints in time;
+    Ed25519 binds them together.
+  </p>
+
+  <h2>Four canonical systems</h2>
+  <div class="systems">
+    <div class="system">
+      <h3>cosmic</h3>
+      <div class="meta">
+        Anchor: 16×10⁹ Julian years before the Carrington Event (1859-09-01T11:18:00Z).<br>
+        Tick: Planck time (5.391247×10⁻⁴⁴ s).<br>
+        Today's <code>T</code> ≈ 2²⁰³. Prime defaults to 256 bits.
+      </div>
+    </div>
+    <div class="system">
+      <h3>tonga</h3>
+      <div class="meta">
+        Anchor: ~74,000 years before J2000 (Toba supervolcano).<br>
+        Tick: one Earth day (86,400 s).<br>
+        One prime per day, cached. Today's <code>T</code> ≈ 2.7×10⁷.
+      </div>
+    </div>
+    <div class="system">
+      <h3>yad</h3>
+      <div class="meta">
+        Anchor: J2000 epoch.<br>
+        Tick: one Yad-second (sidereal year / 512 / 61637 ≈ 1.000016 s).<br>
+        One prime per Yad-second, cached. <em>Yad = day backwards.</em>
+      </div>
+    </div>
+    <div class="system">
+      <h3>milli</h3>
+      <div class="meta">
+        Anchor: 2026-01-01T00:00:00Z.<br>
+        Tick: one Earth millisecond.<br>
+        Fresh prime per mint. Today's <code>T</code> ≈ 10¹⁰.
+      </div>
+    </div>
+  </div>
+
+  <h2>Endpoints</h2>
+  <div class="endpoints">
+    <code>GET  /api/v1/pulse                         → list systems + signing keys</code>
+    <code>GET  /api/v1/pulse/{system_id}/parameters  → describe a system, federation-ready</code>
+    <code>GET  /api/v1/pulse/{system_id}/now         → public, signed pulse only</code>
+    <code>POST /api/v1/pulse/{system_id}/mint        → auth required, target_domain bound</code>
+    <code>POST /api/v1/pulse/{system_id}/verify      → verify a signed pulse</code>
+  </div>
+
+  <h2>Mint a pulse</h2>
+  <pre>curl -X POST https://api.fractal-core.com/api/v1/pulse/cosmic/mint \
+  -H "Authorization: Bearer frc_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_domain": "post-social.com",
+    "nonce": "0123456789abcdef0123456789abcdef",
+    "purpose": "channel-anchor",
+    "verbose": true
+  }'</pre>
+
+  <h2>Verify a pulse</h2>
+  <pre>curl -X POST https://api.fractal-core.com/api/v1/pulse/cosmic/verify \
+  -H "Content-Type: application/json" \
+  -d '{ "signed": &lt;signed pulse JSON&gt; }'</pre>
+
+  <h2>Federation</h2>
+  <p>
+    The protocol is open. To run your own time system, publish your <code>time_system</code> descriptor
+    (anchor, tick unit, age offset, mint cadence, window bits, signing key) at your own
+    <code>/parameters</code> endpoint, and sign your pulses with Ed25519. Verifiers don't care which
+    operator signed — they need only your public key and the canonical bytes.
+  </p>
+  <p>
+    The four systems above are <em>fractal-core's</em> instances of the protocol. They aren't the protocol.
+  </p>
+
+  <footer>
+    <strong>Disclosure.</strong> Code authored with the assistance of language models. The API itself
+    and this interface use no AI agent at runtime — only deterministic prime mathematics and Ed25519
+    signing. The clock is computed from the published anchor; primes are found by uniform random
+    sampling within the published window followed by Baillie–PSW primality testing.
+  </footer>
+</div>
+</body>
+</html>

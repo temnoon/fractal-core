@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse Systems — fractal-core</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #11161f;
+    --panel-2: #161c28;
+    --line: #232a3a;
+    --ink: #e5e9f2;
+    --dim: #8993a8;
+    --accent: #7ec8e3;
+    --accent-2: #ffb86c;
+    --good: #98d8a0;
+    --warn: #ffb86c;
+  }
+  html, body { background: var(--bg); color: var(--ink); margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; }
+  header h1 { font-size: 22px; margin: 0; font-weight: 500; letter-spacing: 0.02em; }
+  header h1 small { color: var(--dim); font-weight: 400; margin-left: 12px; font-size: 14px; }
+  header .nav a { margin-left: 16px; font-size: 14px; }
+
+  .lede { color: var(--dim); font-size: 14px; line-height: 1.6; max-width: 720px; margin: 0 0 28px 0; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .card h2 { margin: 0 0 4px 0; font-size: 16px; font-weight: 500; }
+  .card .sub { color: var(--dim); font-size: 12px; margin-bottom: 12px; }
+
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px dotted var(--line); }
+  .row:last-child { border-bottom: none; }
+  .row .k { color: var(--dim); font-size: 12px; flex: 0 0 110px; }
+  .row .v { font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace; font-size: 12px; word-break: break-all; text-align: right; }
+  .row .v.big { color: var(--accent); }
+  .row .v.prime { color: var(--accent-2); }
+
+  .meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .meta .badge { background: var(--panel-2); border: 1px solid var(--line); padding: 4px 8px; border-radius: 4px; font-size: 11px; color: var(--dim); }
+  .meta .badge.ok { color: var(--good); border-color: var(--good); }
+  .meta .badge.warn { color: var(--warn); border-color: var(--warn); }
+
+  .controls { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  button:hover { border-color: var(--accent); }
+
+  .spin {
+    display: inline-block;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    margin-right: 8px;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+  .system-meta { font-size: 11px; color: var(--dim); margin: 6px 0 10px 0; line-height: 1.5; }
+
+  footer { margin-top: 40px; padding: 20px 0; border-top: 1px solid var(--line); color: var(--dim); font-size: 12px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pulse Systems <small>fractal-core/pulse v1</small></h1>
+    <nav class="nav">
+      <a href="/terrain.html">Terrain</a>
+      <a href="/visualizations.html">Visualizations</a>
+      <a href="/index.html">Explorer</a>
+      <a href="https://api.fractal-core.com/api/v1/pulse">API</a>
+    </nav>
+  </header>
+
+  <p class="lede">
+    A <em>pulse system</em> is a clock and a signing key. The clock value <code>T</code> is a deterministic, monotonic
+    integer derived from a published anchor and tick unit. Each minted pulse pairs <code>T</code> with a fresh prime <code>P</code>
+    drawn uniformly from a 2<sup>120</sup>-wide window and confirmed by Baillie–PSW. fractal-core ships four canonical
+    systems below; the same protocol can be operated by anyone with their own anchor and key.
+  </p>
+
+  <div class="grid" id="cards"></div>
+
+  <footer>
+    <strong>Disclosure.</strong> Code authored with the assistance of language models. The API itself and this interface
+    use no AI agent at runtime — only deterministic prime mathematics and Ed25519 signing. Each system's parameters
+    (anchor, tick unit, window, signing key) are published at <code>/api/v1/pulse/{system}/parameters</code>; signed
+    pulses can be verified offline with the operator's public key.
+  </footer>
+</div>
+
+<script>
+const API = window.location.origin.includes('localhost')
+  ? 'http://localhost:8787/api/v1'
+  : 'https://api.fractal-core.com/api/v1';
+
+const SYSTEMS = ['cosmic', 'tonga', 'yad', 'milli'];
+
+// Refresh cadence per system (ms). The Yad/Tonga systems return cached pulses
+// within a tick anyway, so polling faster than once a second is wasteful.
+const REFRESH_MS = {
+  cosmic: 1000,
+  milli: 1000,
+  yad: 1000,
+  tonga: 5000,
+};
+
+function el(tag, attrs = {}, children = []) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+    else if (c) e.appendChild(c);
+  }
+  return e;
+}
+
+function fmtBig(s, maxLen = 32) {
+  if (!s) return '—';
+  if (s.length <= maxLen) return s;
+  return s.slice(0, 14) + '…' + s.slice(-14) + ' (' + s.length + 'd)';
+}
+
+function makeCard(systemId) {
+  const card = el('div', { class: 'card' });
+  card.id = 'card-' + systemId;
+  card.innerHTML = `
+    <h2><span class="spin"></span><span data-bind="label">${systemId}</span></h2>
+    <div class="sub" data-bind="anchor">…</div>
+    <div class="rows">
+      <div class="row"><span class="k">Tick T</span><span class="v big" data-bind="tick">…</span></div>
+      <div class="row"><span class="k">Prime P</span><span class="v prime" data-bind="prime">…</span></div>
+      <div class="row"><span class="k">Bits</span><span class="v" data-bind="bits">…</span></div>
+      <div class="row"><span class="k">Wall clock</span><span class="v" data-bind="wall">…</span></div>
+      <div class="row" data-bind="display-row" style="display:none"><span class="k" data-bind="display-key">Display</span><span class="v" data-bind="display-val">—</span></div>
+      <div class="row"><span class="k">Key id</span><span class="v" data-bind="key">…</span></div>
+    </div>
+    <div class="meta">
+      <span class="badge" data-bind="cadence">cadence</span>
+      <span class="badge" data-bind="window">window</span>
+      <span class="badge" data-bind="sig-status">signed</span>
+    </div>
+    <div class="controls">
+      <button data-action="download">Download log</button>
+      <button data-action="download-verbose">Download verbose log</button>
+      <button data-action="parameters">Parameters</button>
+      <button data-action="verify">Verify</button>
+    </div>
+  `;
+  card.querySelector('[data-action="download"]').addEventListener('click', () => downloadLog(systemId, false));
+  card.querySelector('[data-action="download-verbose"]').addEventListener('click', () => downloadLog(systemId, true));
+  card.querySelector('[data-action="parameters"]').addEventListener('click', () => openJson(`${API}/pulse/${systemId}/parameters`));
+  card.querySelector('[data-action="verify"]').addEventListener('click', () => verifyLast(systemId));
+  return card;
+}
+
+const lastSigned = {}; // systemId → last SignedPulse
+
+async function refresh(systemId) {
+  try {
+    const res = await fetch(`${API}/pulse/${systemId}/now?verbose=false`);
+    if (!res.ok) {
+      console.warn(systemId, res.status);
+      return;
+    }
+    const signed = await res.json();
+    lastSigned[systemId] = signed;
+    paint(systemId, signed);
+  } catch (err) {
+    console.error(systemId, err);
+  }
+}
+
+function paint(systemId, signed) {
+  const card = document.getElementById('card-' + systemId);
+  if (!card) return;
+  const ts = signed.time_system;
+  const p = signed.pulse;
+  const sig = signed.signature;
+
+  card.querySelector('[data-bind="label"]').textContent = ts.label;
+  card.querySelector('[data-bind="anchor"]').textContent =
+    `${ts.anchor_label} · ${ts.tick_unit_label}`;
+  card.querySelector('[data-bind="tick"]').textContent = fmtBig(p.tick, 40);
+  card.querySelector('[data-bind="prime"]').textContent = fmtBig(p.prime, 40);
+  card.querySelector('[data-bind="bits"]').textContent = `${p.prime_bits} (target ${p.bit_target})`;
+  card.querySelector('[data-bind="wall"]').textContent = p.wall_clock_iso.replace('T', ' ').replace('Z', '');
+  card.querySelector('[data-bind="key"]').textContent = sig.key_id.slice(0, 24) + (sig.key_id.length > 24 ? '…' : '');
+  card.querySelector('[data-bind="cadence"]').textContent = ts.mint_cadence;
+  card.querySelector('[data-bind="window"]').textContent = `window 2^${ts.window_bits}`;
+  const sigBadge = card.querySelector('[data-bind="sig-status"]');
+  sigBadge.textContent = sig.alg;
+  sigBadge.className = 'badge ok';
+
+  const dispRow = card.querySelector('[data-bind="display-row"]');
+  if (p.display) {
+    const k = Object.keys(p.display)[0];
+    dispRow.style.display = '';
+    card.querySelector('[data-bind="display-key"]').textContent = k.replace(/_/g, ' ');
+    card.querySelector('[data-bind="display-val"]').textContent = JSON.stringify(p.display);
+  } else {
+    dispRow.style.display = 'none';
+  }
+}
+
+async function downloadLog(systemId, verbose) {
+  const url = `${API}/pulse/${systemId}/now?verbose=${verbose ? 'true' : 'false'}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const stem = `${systemId}-pulse-${data.pulse?.tick || 'now'}${verbose ? '-verbose' : ''}.json`;
+  a.download = stem;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+async function openJson(url) {
+  window.open(url, '_blank');
+}
+
+async function verifyLast(systemId) {
+  const signed = lastSigned[systemId];
+  if (!signed) { alert('No pulse cached yet. Try again in a moment.'); return; }
+  const res = await fetch(`${API}/pulse/${systemId}/verify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ signed }),
+  });
+  const result = await res.json();
+  alert(JSON.stringify(result, null, 2));
+}
+
+const cardsEl = document.getElementById('cards');
+for (const id of SYSTEMS) cardsEl.appendChild(makeCard(id));
+for (const id of SYSTEMS) {
+  refresh(id);
+  setInterval(() => refresh(id), REFRESH_MS[id] || 1000);
+}
+</script>
+</body>
+</html>
