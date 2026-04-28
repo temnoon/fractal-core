@@ -40,6 +40,14 @@ database_id = "225f8320-65b8-418d-b485-cacc0879e15e"
 # despite account being on Standard usage model. Investigate via dashboard.
 # For now, chunking handles the 30s default limit.
 
+# Drop the orphaned CosmicPulseDO class registered by an April 22 2026 manual
+# deploy. The class was never committed to this repo and is not referenced by
+# any current page or fetch path; the stateless /api/v1/pulse/* design
+# replaces it.
+[[migrations]]
+tag = "v1-drop-cosmic-pulse-do"
+deleted_classes = ["CosmicPulseDO"]
+
 [vars]
 ENVIRONMENT = "production"
 # ADMIN_API_KEY should be set via wrangler secret put ADMIN_API_KEY
