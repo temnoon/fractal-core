@@ -14,7 +14,9 @@ export const svgRoute = new Hono();
 const svgQuerySchema = z.object({
   n: z.string().transform((val) => BigInt(val)),
   n_type: z.enum(['index', 'value']).default('index'),
-  k: z.coerce.number().int().min(5).max(100).default(20),
+  // k is half-window. 500 → 1001 primes, matches the cosmic-pulse renderer's
+  // density (which accepts up to 1200 primes via /lpp/cosmic/render).
+  k: z.coerce.number().int().min(5).max(500).default(20),
   mode: z.enum(['tree', 'spiral', 'mandala', 'walk', 'burst', 'wave']).default('mandala'),
   width: z.coerce.number().int().min(100).max(4096).default(800),
   height: z.coerce.number().int().min(100).max(4096).default(800),
@@ -40,7 +42,7 @@ svgRoute.get('/info', (c) => {
     parameters: {
       n: { type: 'bigint', required: true, description: 'Prime index or value' },
       n_type: { type: 'string', default: 'index', options: ['index', 'value'] },
-      k: { type: 'integer', default: 20, min: 5, max: 100, description: 'Neighborhood size' },
+      k: { type: 'integer', default: 20, min: 5, max: 500, description: 'Neighborhood size (primes each side; total = 2k+1)' },
       mode: { type: 'string', default: 'mandala', options: ['tree', 'spiral', 'mandala', 'walk', 'burst', 'wave'] },
       width: { type: 'integer', default: 800, description: 'SVG width' },
       height: { type: 'integer', default: 800, description: 'SVG height' },

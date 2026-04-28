@@ -8,10 +8,24 @@
  */
 
 import { bpswEngine } from './engines/index.js';
+import { alignUp, alignDown, step, stepBack } from './lib/wheel.js';
 
 // Configuration
 const CHUNK_SIZE = 200_000; // Process 200K candidates per chunk
-const CHUNK_TIMEOUT_MS = 25_000; // 25 seconds per chunk (leave margin for 30s default CPU limit)
+// Default chunk budget: leave margin for 30s default CPU limit. Override via
+// the CHUNK_TIMEOUT_MS env var (set in wrangler.toml [vars]) when [limits]
+// cpu_ms is raised. setChunkTimeoutMs() lets early-startup wiring read env.
+let CHUNK_TIMEOUT_MS = 25_000;
+
+export function setChunkTimeoutMs(ms: number): void {
+  // Floor of 10 ms intentional — production never wants this small but tests
+  // need it low enough to force multi-chunk behaviour deterministically.
+  if (ms >= 10 && ms <= 290_000) CHUNK_TIMEOUT_MS = ms;
+}
+
+export function getChunkTimeoutMs(): number {
+  return CHUNK_TIMEOUT_MS;
+}
 
 export interface ChunkState {
   jobId: string;
@@ -33,6 +47,22 @@ export interface ChunkState {
   afterPrimes?: string[];  // Primes found after center
   beforeDone?: boolean;
   afterDone?: boolean;
+
+  // Cross-chunk walker resume state (essential at ≥ 4 K bits, where a single
+  // isPrime can dominate the chunk budget). When set, the next chunk picks
+  // up at exactly this candidate instead of recomputing from beforePrimes[0]
+  // / afterPrimes[last] — preventing throw-away work when no prime was found
+  // within the prior chunk.
+  pendingForwardCandidate?: string;
+  pendingForwardWheelIdx?: number;
+  pendingBackwardCandidate?: string;
+  pendingBackwardWheelIdx?: number;
+
+  /** Total candidates run through isPrime so far (forward + backward, all chunks). */
+  candidatesTested?: number;
+  /** Exponential moving average of isPrime wall-time, ms. Used to predict whether
+   *  another call will fit in the remaining chunk budget. */
+  isPrimeEmaMs?: number;
 
   // stats-only mode fields (centerPrime shared with around-value above)
   phase?: 'backward' | 'forward';
@@ -211,71 +241,160 @@ export function processChunk(state: ChunkState): ChunkResult {
 }
 
 /**
- * Process one chunk of bidirectional prime walking (around-value mode)
- * Walks both before and after the center prime, bounded by CHUNK_TIMEOUT_MS
+ * Update the EMA estimate of isPrime wall-time. Smoothing factor α = 0.3 —
+ * fast enough to react when bit-widths jump, stable enough to ignore one-off
+ * outlier primes (very smooth or very rough candidates).
+ */
+function updateIsPrimeEma(state: ChunkState, sampleMs: number): void {
+  const prior = state.isPrimeEmaMs ?? sampleMs;
+  state.isPrimeEmaMs = prior * 0.7 + sampleMs * 0.3;
+}
+
+/**
+ * Decide whether another isPrime call would fit inside the chunk budget.
+ * Padded by ×1.5 because some candidates are 5-10× slower than the EMA
+ * (e.g. those that pass MR base 2 and run the full Lucas chain).
+ */
+function canAffordAnotherTest(state: ChunkState, elapsedMs: number): boolean {
+  const remaining = CHUNK_TIMEOUT_MS - elapsedMs;
+  const predicted = (state.isPrimeEmaMs ?? 1) * 1.5;
+  return remaining > predicted;
+}
+
+/**
+ * Process one chunk of bidirectional prime walking (around-value mode).
+ *
+ * Walks candidate-by-candidate using the wheel sieve, checking the chunk
+ * budget after every isPrime call. If we can't afford another test, we
+ * checkpoint the current candidate (and wheel index) into ChunkState so the
+ * next chunk resumes exactly there — no thrown-away work.
+ *
+ * Why this matters: at 8K + bits each isPrime can take ~1.5 s and at 16K
+ * bits ~12 s. The legacy implementation called bpswEngine.nextPrime() which
+ * is a monolithic loop with no checkpoints; a chunk could blow past the CPU
+ * budget mid-test. This rewrite gives one isPrime call ↔ one checkpoint, so
+ * walks at any bit-width can span as many chunks as needed.
  */
 export function processChunkAroundValue(state: ChunkState): ChunkResult {
   const startTime = Date.now();
   const k = state.targetCount;
   let primesFound = 0;
+  let candidatesThisChunk = 0;
 
   const beforePrimes = state.beforePrimes ?? [];
   const afterPrimes = state.afterPrimes ?? [];
   const centerPrime = BigInt(state.centerPrime!);
 
-  // Walk backward from center
+  // ── Backward walk ─────────────────────────────────────────────────────
+  // Half the chunk budget is reserved for the backward pass so a long
+  // backward walk doesn't starve the forward walk inside the same chunk.
+  const backwardBudget = CHUNK_TIMEOUT_MS / 2;
   if (!state.beforeDone && beforePrimes.length < k) {
-    let prev = beforePrimes.length > 0
-      ? BigInt(beforePrimes[0]) - 1n
-      : centerPrime - 1n;
+    let cand: bigint;
+    let idx: number;
+    if (state.pendingBackwardCandidate) {
+      cand = BigInt(state.pendingBackwardCandidate);
+      idx = state.pendingBackwardWheelIdx ?? 0;
+    } else {
+      // Resume from the lowest known prime (or center) and step one wheel
+      // position below it; alignDown gives the largest wheel-coprime ≤ that.
+      const startFrom =
+        beforePrimes.length > 0 ? BigInt(beforePrimes[0]) - 1n : centerPrime - 1n;
+      ({ value: cand, idx } = alignDown(startFrom));
+    }
 
-    while (
-      beforePrimes.length < k &&
-      Date.now() - startTime < CHUNK_TIMEOUT_MS / 2
-    ) {
-      if (prev <= 2n) {
-        if (prev === 2n && beforePrimes.length < k && (beforePrimes[0] !== '2')) {
+    let backwardTested = 0;
+    while (beforePrimes.length < k) {
+      if (cand <= 2n) {
+        if (cand === 2n && beforePrimes[0] !== '2') {
           beforePrimes.unshift('2');
           primesFound++;
         }
         state.beforeDone = true;
         break;
       }
-      // Step back before searching to avoid repeating the same prime
-      prev = bpswEngine.prevPrime(prev - 1n);
-      beforePrimes.unshift(prev.toString());
-      primesFound++;
+
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= backwardBudget) break;
+      // Always allow the first test of this direction so the EMA can
+      // self-correct — otherwise an over-large EMA seeded by a prior chunk
+      // can deadlock the walker (refuse-to-run never updates the EMA).
+      if (backwardTested > 0 && !canAffordAnotherTest(state, elapsed)) break;
+
+      const t0 = performance.now();
+      const isPrime = bpswEngine.isPrime(cand);
+      updateIsPrimeEma(state, performance.now() - t0);
+      candidatesThisChunk++;
+      backwardTested++;
+
+      if (isPrime) {
+        beforePrimes.unshift(cand.toString());
+        primesFound++;
+      }
+
+      ({ value: cand, idx } = stepBack(cand, idx));
     }
 
     if (beforePrimes.length >= k) {
       state.beforeDone = true;
+      state.pendingBackwardCandidate = undefined;
+      state.pendingBackwardWheelIdx = undefined;
+    } else if (!state.beforeDone) {
+      state.pendingBackwardCandidate = cand.toString();
+      state.pendingBackwardWheelIdx = idx;
     }
   }
 
-  // Walk forward from center
+  // ── Forward walk ──────────────────────────────────────────────────────
   if (!state.afterDone && afterPrimes.length < k) {
-    let next = afterPrimes.length > 0
-      ? BigInt(afterPrimes[afterPrimes.length - 1]) + 1n
-      : centerPrime + 1n;
+    let cand: bigint;
+    let idx: number;
+    if (state.pendingForwardCandidate) {
+      cand = BigInt(state.pendingForwardCandidate);
+      idx = state.pendingForwardWheelIdx ?? 0;
+    } else {
+      const startFrom =
+        afterPrimes.length > 0
+          ? BigInt(afterPrimes[afterPrimes.length - 1]) + 1n
+          : centerPrime + 1n;
+      ({ value: cand, idx } = alignUp(startFrom));
+    }
 
-    while (
-      afterPrimes.length < k &&
-      Date.now() - startTime < CHUNK_TIMEOUT_MS
-    ) {
-      // Step forward before searching to avoid repeating the same prime
-      next = bpswEngine.nextPrime(next + 1n);
-      afterPrimes.push(next.toString());
-      primesFound++;
+    let forwardTested = 0;
+    while (afterPrimes.length < k) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= CHUNK_TIMEOUT_MS) break;
+      // Same first-test-always rule as the backward direction.
+      if (forwardTested > 0 && !canAffordAnotherTest(state, elapsed)) break;
+
+      const t0 = performance.now();
+      const isPrime = bpswEngine.isPrime(cand);
+      updateIsPrimeEma(state, performance.now() - t0);
+      candidatesThisChunk++;
+      forwardTested++;
+
+      if (isPrime) {
+        afterPrimes.push(cand.toString());
+        primesFound++;
+      }
+
+      ({ value: cand, idx } = step(cand, idx));
     }
 
     if (afterPrimes.length >= k) {
       state.afterDone = true;
+      state.pendingForwardCandidate = undefined;
+      state.pendingForwardWheelIdx = undefined;
+    } else {
+      state.pendingForwardCandidate = cand.toString();
+      state.pendingForwardWheelIdx = idx;
     }
   }
 
   // Update state
   state.beforePrimes = beforePrimes;
   state.afterPrimes = afterPrimes;
+  state.candidatesTested = (state.candidatesTested ?? 0) + candidatesThisChunk;
   state.chunksProcessed++;
   state.updatedAt = new Date().toISOString();
 
@@ -321,18 +440,40 @@ export function processChunkStatsOnly(state: ChunkState): ChunkResult {
   const k = state.targetCount;
   let primesFound = 0;
 
+  // ── Backward phase ────────────────────────────────────────────────────
+  // Walk k prevPrime calls from center, *retaining* each prime in
+  // state.beforePrimes (oldest-first). The forward phase replays them
+  // through the sliding window without re-testing — saves ~k isPrime calls,
+  // i.e. ~33% of the stats-only walk for large k.
+  //
+  // Edge case: when the center is at or near p=2, prevPrime(1) returns 2
+  // forever. We detect "no more progress backward" via next >= current and
+  // halt early; the forward phase then runs on a shorter (or empty) backward
+  // buffer, which is a correct partial neighborhood rather than a corrupt
+  // run of duplicates.
   if (state.phase === 'backward') {
     let current = BigInt(state.currentValue);
     let remaining = state.remainingBack ?? k;
+    if (!state.beforePrimes) state.beforePrimes = [];
+    const beforePrimes = state.beforePrimes;
+    let exhaustedBackward = false;
     while (remaining > 0 && Date.now() - startTime < CHUNK_TIMEOUT_MS / 2) {
-      current = bpswEngine.prevPrime(current - 1n);
+      const next = bpswEngine.prevPrime(current - 1n);
+      if (next >= current) {
+        exhaustedBackward = true;
+        break;
+      }
+      current = next;
+      // Maintain ascending order (oldest first) — replays naturally forward.
+      beforePrimes.unshift(current.toString());
       remaining--;
+      primesFound++;
     }
     state.currentValue = current;
     state.remainingBack = remaining;
     state.chunksProcessed++;
     state.updatedAt = new Date().toISOString();
-    if (remaining === 0) {
+    if (remaining === 0 || exhaustedBackward) {
       state.startPrime = current.toString();
       state.phase = 'forward';
       state.currentValue = current;
@@ -343,17 +484,27 @@ export function processChunkStatsOnly(state: ChunkState): ChunkResult {
     return { state, primesFound, hasMore: !state.completed };
   }
 
-  // forward phase
-  let current = BigInt(state.currentValue);
+  // ── Forward phase ─────────────────────────────────────────────────────
+  // Drain the backward buffer first (no isPrime calls), then continue with
+  // the center prime and walk forward k more nextPrime calls.
   const total = 2 * k + 1;
   let generated = state.primesGenerated ?? 0;
+  const buffered = state.beforePrimes ?? [];
+  let current = BigInt(state.currentValue);
 
   while (generated < total && Date.now() - startTime < CHUNK_TIMEOUT_MS) {
-    if (generated > 0) {
-      current = bpswEngine.nextPrime(current + 1n);
+    let p2: bigint;
+    if (generated < buffered.length) {
+      // Replay a backward-found prime — already known, no test needed.
+      p2 = BigInt(buffered[generated]);
+    } else if (generated === buffered.length) {
+      // Center prime: already cached on state.centerPrime by the caller.
+      p2 = state.centerPrime ? BigInt(state.centerPrime) : current;
+    } else {
+      // Walk forward — only here do we incur a fresh isPrime walk.
+      p2 = bpswEngine.nextPrime(current + 1n);
     }
 
-    const p2 = current;
     const p1 = state.lastPrime1 ? BigInt(state.lastPrime1) : null;
     const p0 = state.lastPrime0 ? BigInt(state.lastPrime0) : null;
 
@@ -373,16 +524,22 @@ export function processChunkStatsOnly(state: ChunkState): ChunkResult {
       }
       if (state.computeRatio) {
         const span = p2 - p0;
-        const g = computeGcd(d2, span);
-        const num = (d2 / g).toString();
-        const den = (span / g).toString();
-        incCount(state.countsRatio!, `${num}/${den}`);
-        state.totalRatio = (state.totalRatio ?? 0) + 1;
+        // span === 0 means p2 == p0 — degenerate (e.g. start of sequence
+        // edge cases). Skip rather than divide by zero.
+        if (span !== 0n) {
+          const g = computeGcd(d2, span);
+          const denom = g === 0n ? 1n : g;
+          const num = (d2 / denom).toString();
+          const den = (span / denom).toString();
+          incCount(state.countsRatio!, `${num}/${den}`);
+          state.totalRatio = (state.totalRatio ?? 0) + 1;
+        }
       }
     }
 
     state.lastPrime0 = state.lastPrime1;
     state.lastPrime1 = p2.toString();
+    current = p2;
     generated++;
     primesFound++;
   }
@@ -394,6 +551,8 @@ export function processChunkStatsOnly(state: ChunkState): ChunkResult {
 
   if (generated >= total) {
     state.completed = true;
+    // Drop the backward buffer once fully replayed; saves KV bytes.
+    state.beforePrimes = undefined;
   }
 
   return {

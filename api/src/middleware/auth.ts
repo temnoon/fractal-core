@@ -18,6 +18,7 @@ declare module 'hono' {
   interface ContextVariableMap {
     auth: AuthContext | null;
     isAdmin: boolean;
+    opCounters?: import('../types/user.js').OpCounters;
   }
 }
 

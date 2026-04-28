@@ -8,6 +8,7 @@ import { logger } from 'hono/logger';
 
 import type { Env } from './types/env.js';
 import { setKeyStorageKv } from './config/keys.js';
+import { setChunkTimeoutMs } from './services/chunked-sieve.js';
 import { tieredRateLimit, tieredExpensiveRateLimit } from './middleware/rate-limit.js';
 import { authMiddleware } from './middleware/auth.js';
 import { cpuLimitCheck, trackCpuTime } from './middleware/usage.js';
@@ -30,14 +31,21 @@ import { apiKeysRoute } from './routes/api-keys.js';
 import { lppRoute } from './routes/lpp.js';
 import { lpp2Route } from './routes/lpp2.js';
 import { pulseRoute } from './routes/pulse.js';
+import { constellationsRoute } from './routes/constellations.js';
+import { benchRoute } from './routes/bench.js';
+import { isPrimeRoute } from './routes/isprime.js';
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env }>();
 
-  // Middleware to set up KV bindings for key storage
+  // Middleware to set up KV bindings + tunable chunk budget.
   app.use('*', async (c, next) => {
-    // Set the KV namespace if available (keys are cached across requests)
     setKeyStorageKv(c.env?.KEYS_KV);
+    const envBudget = c.env?.CHUNK_TIMEOUT_MS;
+    if (envBudget) {
+      const parsed = parseInt(envBudget, 10);
+      if (Number.isFinite(parsed)) setChunkTimeoutMs(parsed);
+    }
     await next();
   });
 
@@ -119,15 +127,32 @@ export function createApp() {
   v1.route('/flame', flameRoute);
   v1.route('/svg', svgRoute);
 
+  // Constellation / k-tuple admissibility + bounded forward search
+  v1.use('/constellations', ...expensiveMiddleware);
+  v1.use('/constellations/*', ...expensiveMiddleware);
+  v1.route('/constellations', constellationsRoute);
+
+  // Empirical engine benchmarks — used to tune chunk timeouts.
+  v1.use('/bench', ...expensiveMiddleware);
+  v1.use('/bench/*', ...expensiveMiddleware);
+  v1.route('/bench', benchRoute);
+
+  // Explicit primality test — the metering unit for the future pricing model.
+  v1.use('/isprime', ...expensiveMiddleware);
+  v1.use('/isprime/*', ...expensiveMiddleware);
+  v1.route('/isprime', isPrimeRoute);
+
   // LPP routes (Lamish Pulse Protocol)
   v1.route('/lpp', lppRoute);
 
   // LPP2 routes (enhanced protocol — D1-backed nodes, networks)
   v1.route('/lpp2', lpp2Route);
 
-  // Pulse systems (cosmic, tonga, yad, milli + federation-ready registry)
-  // The page at fractal-core.com/cosmic-pulse calls /api/v1/pulse/cosmic/* directly;
-  // no API-side alias is needed.
+  // Pulse systems (cosmic, tonga, yad, milli + federation-ready registry).
+  // /mint can be CPU-intensive (256-bit BPSW climb); route through the
+  // expensive-middleware stack like /isprime + /bench.
+  v1.use('/pulse', ...expensiveMiddleware);
+  v1.use('/pulse/*', ...expensiveMiddleware);
   v1.route('/pulse', pulseRoute);
 
   // Mount v1 routes

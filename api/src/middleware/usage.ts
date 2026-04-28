@@ -6,7 +6,7 @@
 
 import { Context, Next } from 'hono';
 import type { Env } from '../types/env.js';
-import type { AuthContext } from '../types/user.js';
+import type { AuthContext, OpCounters } from '../types/user.js';
 import { trackUsage, hasExceededCpuLimit, getRemainingCpuTime, formatCpuTime } from '../services/usage-tracker.js';
 import { TIER_LIMITS } from '../types/user.js';
 
@@ -96,17 +96,24 @@ export function trackCpuTime(isExpensive: boolean = false) {
     const auth = c.get('auth') as AuthContext | null;
     const kv = c.env?.USERS_KV;
 
+    const ops = c.get('opCounters') as OpCounters | undefined;
+
     if (auth && kv) {
       c.executionCtx?.waitUntil?.(
         trackUsage(kv, {
           user_id: auth.user.id,
           cpu_time_ms: cpuTimeMs,
           is_expensive: isExpensive,
+          ops,
         }).catch((err) => console.error('Failed to track usage:', err))
       );
     }
 
-    // Add timing header
+    // Add timing + op headers (op counts useful for billing diagnostics)
     c.header('X-CPU-Time-Ms', cpuTimeMs.toString());
+    if (ops) {
+      c.header('X-IsPrime-Calls', ops.isprime_total.toString());
+      if (ops.big_isprime_total > 0) c.header('X-Big-IsPrime-Calls', ops.big_isprime_total.toString());
+    }
   };
 }

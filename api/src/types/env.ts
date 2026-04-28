@@ -21,9 +21,15 @@ export interface Env {
   // Environment variables
   ENVIRONMENT?: string;
 
+  // Per-chunk processing budget (ms). Set in wrangler.toml [vars].
+  CHUNK_TIMEOUT_MS?: string;
+
   // Rate limiting control
   DISABLE_RATE_LIMIT?: string;
 
   // Admin API key for privileged operations
   ADMIN_API_KEY?: string;
+
+  // Durable Object: FIFO cosmic-pulse minter
+  COSMIC_PULSE_DO?: DurableObjectNamespace;
 }

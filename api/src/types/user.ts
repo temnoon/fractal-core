@@ -54,12 +54,23 @@ export interface ApiKey {
   last_used_at?: string; // ISO 8601
 }
 
+/** Per-operation counts for the future per-test pricing model. */
+export interface OpCounters {
+  isprime_total: number;
+  nextprime_total: number;
+  /** isPrime calls on candidates ≥ 2048 bits — the metered "big prime" line. */
+  big_isprime_total: number;
+  /** Sum of bit-widths of every isPrime call; "bit·calls" is a useful unit. */
+  isprime_bit_calls: number;
+}
+
 export interface UsageRecord {
   user_id: string;
   period: string;        // YYYY-MM format
   cpu_time_ms: number;
   request_count: number;
   expensive_request_count: number;
+  ops?: OpCounters;      // optional for back-compat with pre-metering records
   updated_at: string;    // ISO 8601
 }
 

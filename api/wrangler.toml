@@ -36,9 +36,12 @@ binding = "LPP_DB"
 database_name = "fractal-core-lpp2"
 database_id = "225f8320-65b8-418d-b485-cacc0879e15e"
 
-# NOTE: [limits] cpu_ms = 300000 causes worker to hang in production
-# despite account being on Standard usage model. Investigate via dashboard.
-# For now, chunking handles the 30s default limit.
+# Workers Standard CPU limit per invocation. Default 30s; Standard model
+# allows up to 300000 (5 minutes). Earlier attempt at 300000 caused hangs;
+# step it up empirically — 60000 (1 minute) here as a safe first bump,
+# tune via /api/v1/bench/isprime before raising further.
+[limits]
+cpu_ms = 60000
 
 # Drop the orphaned CosmicPulseDO class registered by an April 22 2026 manual
 # deploy. The class was never committed to this repo and is not referenced by
@@ -50,4 +53,7 @@ deleted_classes = ["CosmicPulseDO"]
 
 [vars]
 ENVIRONMENT = "production"
+# CHUNK_TIMEOUT_MS lets us tune chunk processing duration without redeploy.
+# Keep it under the [limits] cpu_ms above with margin for KV write overhead.
+CHUNK_TIMEOUT_MS = "55000"
 # ADMIN_API_KEY should be set via wrangler secret put ADMIN_API_KEY

@@ -4,8 +4,9 @@
  * Tracks CPU time and request counts for billing and rate limiting.
  */
 
-import type { UsageRecord, TierLimits, UserTier } from '../types/user.js';
+import type { UsageRecord, TierLimits, UserTier, OpCounters } from '../types/user.js';
 import { TIER_LIMITS } from '../types/user.js';
+import { mergeCounters } from './lib/op-meter.js';
 
 /**
  * Get current billing period in YYYY-MM format
@@ -46,6 +47,7 @@ export async function trackUsage(
     user_id: string;
     cpu_time_ms: number;
     is_expensive: boolean;
+    ops?: OpCounters;
   }
 ): Promise<UsageRecord> {
   const period = getCurrentPeriod();
@@ -70,6 +72,9 @@ export async function trackUsage(
   record.request_count += 1;
   if (params.is_expensive) {
     record.expensive_request_count += 1;
+  }
+  if (params.ops) {
+    record.ops = mergeCounters(record.ops, params.ops);
   }
   record.updated_at = new Date().toISOString();
 
@@ -151,6 +156,7 @@ export interface UsageSummary {
   request_count: number;
   expensive_request_count: number;
   limit_exceeded: boolean;
+  ops?: OpCounters;        // per-test counters (isPrime / nextPrime / big-prime)
 }
 
 export function getUsageSummary(
@@ -167,6 +173,7 @@ export function getUsageSummary(
     request_count: usage?.request_count || 0,
     expensive_request_count: usage?.expensive_request_count || 0,
     limit_exceeded: hasExceededCpuLimit(usage, limits),
+    ops: usage?.ops,
   };
 }
 
