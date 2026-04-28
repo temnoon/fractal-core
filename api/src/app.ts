@@ -28,6 +28,8 @@ import { svgRoute } from './routes/svg.js';
 import { usersRoute } from './routes/users.js';
 import { apiKeysRoute } from './routes/api-keys.js';
 import { lppRoute } from './routes/lpp.js';
+import { lpp2Route } from './routes/lpp2.js';
+import { pulseRoute } from './routes/pulse.js';
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env }>();
@@ -119,6 +121,14 @@ export function createApp() {
 
   // LPP routes (Lamish Pulse Protocol)
   v1.route('/lpp', lppRoute);
+
+  // LPP2 routes (enhanced protocol — D1-backed nodes, networks)
+  v1.route('/lpp2', lpp2Route);
+
+  // Pulse systems (cosmic, tonga, yad, milli + federation-ready registry)
+  // The page at fractal-core.com/cosmic-pulse calls /api/v1/pulse/cosmic/* directly;
+  // no API-side alias is needed.
+  v1.route('/pulse', pulseRoute);
 
   // Mount v1 routes
   app.route('/api/v1', v1);

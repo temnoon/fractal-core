@@ -15,6 +15,10 @@ import {
   timeToNextPulse,
   computeFingerprint,
   initializeEpoch,
+  getCurrentResidue,
+  getResidueAtIndex,
+  getChannelSchedule,
+  getCurrentPrimeIndex,
 } from '../services/lpp-pulse.js';
 
 import {
@@ -22,6 +26,8 @@ import {
   getSequenceAtPrime,
   fingerprintHash,
 } from '../services/lpp-sync.js';
+
+import { primeEngine } from '../services/engines/index.js';
 
 import {
   registerRepeater,
@@ -89,6 +95,103 @@ lppRoute.get('/epoch', async (c) => {
   await initializeEpoch();
   const epoch = getEpochInfo();
   return c.json(epoch);
+});
+
+// ============================================================================
+// LPP2 Residue / Catuskoti Channel Endpoints
+// ============================================================================
+
+/**
+ * GET /lpp/residue - Current residue channel (catuskoti state)
+ */
+lppRoute.get('/residue', async (c) => {
+  await initializeEpoch();
+  const includeNeighborhood = c.req.query('neighborhood') === 'true';
+  const k = parseInt(c.req.query('k') || '10', 10);
+  const residue = getCurrentResidue(includeNeighborhood, Math.min(k, 50));
+  return c.json(residue);
+});
+
+/**
+ * GET /lpp/residue/:index - Residue at specific pulse index
+ */
+lppRoute.get('/residue/:index', async (c) => {
+  const index = parseInt(c.req.param('index'), 10);
+  if (isNaN(index) || index < 1) {
+    return c.json({ error: 'Invalid index' }, 400);
+  }
+
+  await initializeEpoch();
+  const includeNeighborhood = c.req.query('neighborhood') === 'true';
+  const k = parseInt(c.req.query('k') || '10', 10);
+  const residue = getResidueAtIndex(index, includeNeighborhood, Math.min(k, 50));
+  return c.json(residue);
+});
+
+/**
+ * GET /lpp/channels/schedule - Channel schedule for next N pulses
+ */
+lppRoute.get('/channels/schedule', async (c) => {
+  await initializeEpoch();
+  const count = Math.min(parseInt(c.req.query('count') || '24', 10), 100);
+  const fromStr = c.req.query('from');
+  const fromIndex = fromStr ? parseInt(fromStr, 10) : getCurrentPrimeIndex();
+
+  if (isNaN(count) || count < 1) {
+    return c.json({ error: 'Invalid count' }, 400);
+  }
+
+  const schedule = getChannelSchedule(fromIndex, count);
+
+  // Compute distribution stats
+  const dist = { agreement: 0, tension: 0, discovery: 0, silence: 0 };
+  for (const entry of schedule) {
+    dist[entry.channel]++;
+  }
+
+  return c.json({
+    from: fromIndex,
+    count: schedule.length,
+    schedule,
+    distribution: dist,
+    silenceRate: dist.silence / schedule.length,
+  });
+});
+
+/**
+ * GET /lpp/neighborhood - Prime neighborhood at current pulse
+ */
+lppRoute.get('/neighborhood', async (c) => {
+  await initializeEpoch();
+  const k = Math.min(parseInt(c.req.query('k') || '10', 10), 50);
+  const indexStr = c.req.query('index');
+  const index = indexStr ? parseInt(indexStr, 10) : getCurrentPrimeIndex();
+
+  if (isNaN(index) || index < 1) {
+    return c.json({ error: 'Invalid index' }, 400);
+  }
+
+  const result = primeEngine.primesAroundIndex(index, k);
+
+  // Compute gaps and second differences
+  const gaps: string[] = [];
+  for (let i = 0; i < result.primes.length - 1; i++) {
+    gaps.push((result.primes[i + 1] - result.primes[i]).toString());
+  }
+
+  const d2: string[] = [];
+  for (let i = 0; i < gaps.length - 1; i++) {
+    d2.push((BigInt(gaps[i + 1]) - BigInt(gaps[i])).toString());
+  }
+
+  return c.json({
+    centerIndex: index,
+    k,
+    primes: result.primes.map(p => p.toString()),
+    indices: result.indices,
+    gaps,
+    d2,
+  });
 });
 
 // ============================================================================
@@ -530,3 +633,4 @@ lppRoute.get('/storage', async (c) => {
   const stats = await getStorageStats();
   return c.json(stats);
 });
+

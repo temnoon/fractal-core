@@ -128,3 +128,131 @@ export interface WSMessage {
   data?: PulseEvent | string;
   error?: string;
 }
+
+// ============================================================================
+// LPP2 Types — Catuskoti Machine, Enhanced Nodes, Networks
+// ============================================================================
+
+// Residue channels (prime mod 10 → catuskoti logic)
+export type Residue = 1 | 3 | 7 | 9;
+export type Channel = 'agreement' | 'tension' | 'discovery' | 'silence';
+export type Catuskoti = 'is' | 'is_not' | 'both' | 'neither';
+export type QuaternaryBits = '00' | '01' | '10' | '11';
+
+export const RESIDUE_MAP: Record<Residue, { channel: Channel; catuskoti: Catuskoti; bits: QuaternaryBits }> = {
+  1: { channel: 'agreement', catuskoti: 'is', bits: '00' },
+  3: { channel: 'tension', catuskoti: 'is_not', bits: '01' },
+  7: { channel: 'discovery', catuskoti: 'both', bits: '10' },
+  9: { channel: 'silence', catuskoti: 'neither', bits: '11' },
+};
+
+export interface ResidueResponse {
+  pulseIndex: number;
+  prime: string;
+  residue: Residue;
+  channel: Channel;
+  catuskoti: Catuskoti;
+  quaternaryBits: QuaternaryBits;
+  neighborhood?: {
+    k: number;
+    primes: string[];
+    residues: Residue[];
+    stream: string;  // concatenated quaternary bits
+  };
+}
+
+export interface ChannelScheduleEntry {
+  pulseIndex: number;
+  prime: string;
+  residue: Residue;
+  channel: Channel;
+  catuskoti: Catuskoti;
+  quaternaryBits: QuaternaryBits;
+}
+
+// LPP2 Node (enhanced version of PostSocialNode)
+export type LPP2NodeType = 'book' | 'archive' | 'curator' | 'gateway' | 'relay' | 'custom';
+export type LPP2NodeStatus = 'active' | 'idle' | 'unreachable' | 'deregistered';
+
+export interface LPP2Node {
+  id: string;
+  clientId: string;            // Which client app (post-social, dreegle, humanizer, gravity-press)
+  name: string;
+  address: string;             // LPP2 address string
+  endpoint: string;            // HTTP callback URL
+
+  nodeType: LPP2NodeType;
+  identity?: {
+    essentialTeachings?: string[];
+    embodiedText?: string;
+    voiceProfile?: string;
+  };
+
+  worldModel: {
+    knownNodes: string[];
+    networkMemberships: string[];
+    horizon: string[];
+    blindSpots: string[];
+  };
+
+  capabilities: {
+    canConverse: boolean;
+    canCurate: boolean;
+    canCite: boolean;
+    canTransform: boolean;
+    tools: string[];
+    contentTypes: string[];
+  };
+
+  status: LPP2NodeStatus;
+  lastHeartbeat: string;
+  registeredAt: string;
+  updatedAt: string;
+}
+
+// LPP2 Network
+export type JoinPolicy = 'open' | 'invite' | 'approval';
+
+export interface LPP2Network {
+  id: string;
+  name: string;
+  description: string;
+
+  rules: {
+    conversationCadence: string;
+    channelMapping: Record<Residue, string>;
+    maxNodes: number;
+    joinPolicy: JoinPolicy;
+    contentPolicy: string;
+  };
+
+  federatedWith: string[];
+  gatewayNodes: string[];
+  memberCount: number;
+  lastActivity: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+// LPP2 Address format: LPP::<primeIndex>@<networkFingerprint>/<parity>/<clientDomain>
+export interface LPP2Address {
+  primeIndex: number;
+  networkFingerprint: string;
+  parity: 'odd' | 'even';
+  clientDomain: string;
+}
+
+export function formatLPP2Address(addr: LPP2Address): string {
+  return `LPP::${addr.primeIndex}@${addr.networkFingerprint}/${addr.parity}/${addr.clientDomain}`;
+}
+
+export function parseLPP2Address(str: string): LPP2Address | null {
+  const match = str.match(/^LPP::(\d+)@([a-f0-9]+)\/(odd|even)\/(.+)$/);
+  if (!match) return null;
+  return {
+    primeIndex: parseInt(match[1], 10),
+    networkFingerprint: match[2],
+    parity: match[3] as 'odd' | 'even',
+    clientDomain: match[4],
+  };
+}

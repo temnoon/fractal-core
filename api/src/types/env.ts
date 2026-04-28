@@ -15,6 +15,9 @@ export interface Env {
   // KV namespace for async job queue persistence
   JOBS_KV?: KVNamespace;
 
+  // D1 database for LPP2 relational data (nodes, networks, conversations)
+  LPP_DB?: D1Database;
+
   // Environment variables
   ENVIRONMENT?: string;
 

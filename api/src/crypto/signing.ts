@@ -102,6 +102,41 @@ export function publicKeyFromBase64(b64: string): Uint8Array {
   return base64Decode(b64);
 }
 
+/**
+ * Sign an arbitrary canonical-JSON-serializable object.
+ *
+ * Generic counterpart to signResponse() — used by the pulse system, which
+ * signs {time_system, request, pulse, receipt} rather than the
+ * neighborhood-specific {request, result, receipt} triple.
+ */
+export function signCanonical(obj: unknown, keyPair: KeyPair): SignatureBlock {
+  const hash = sha256(canonicalBytes(obj));
+  const signature = ed25519.sign(hash, keyPair.secretKey);
+  return {
+    alg: 'ed25519',
+    key_id: keyPair.keyId,
+    signed_hash_alg: 'sha256',
+    sig_b64: base64Encode(signature),
+  };
+}
+
+/**
+ * Verify a generic canonical-JSON signature.
+ */
+export function verifyCanonicalSignature(
+  obj: unknown,
+  signature: SignatureBlock,
+  publicKey: Uint8Array
+): boolean {
+  try {
+    const hash = sha256(canonicalBytes(obj));
+    const sig = base64Decode(signature.sig_b64);
+    return ed25519.verify(sig, hash, publicKey);
+  } catch {
+    return false;
+  }
+}
+
 // Base64 encoding/decoding helpers (Workers-compatible, no Buffer)
 function base64Encode(data: Uint8Array): string {
   let binary = '';

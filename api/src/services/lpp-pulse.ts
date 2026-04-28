@@ -7,7 +7,8 @@
 
 import { primeEngine } from './engines/index.js';
 import { saveEpoch, loadEpoch } from './lpp-storage.js';
-import type { PulseEpoch, PulseEvent } from '../types/lpp.js';
+import type { PulseEpoch, PulseEvent, Residue, ResidueResponse, ChannelScheduleEntry } from '../types/lpp.js';
+import { RESIDUE_MAP } from '../types/lpp.js';
 
 // Default pulse interval: 1 second
 const DEFAULT_INTERVAL_MS = 1000;
@@ -86,7 +87,10 @@ export async function resetEpoch(intervalMs: number = DEFAULT_INTERVAL_MS): Prom
 }
 
 /**
- * Calculate current prime index based on elapsed time since epoch start
+ * Calculate current prime index based on elapsed time since epoch start.
+ *
+ * For large indices (beyond sieve range), the prime engine uses PNT estimate
+ * + Miller-Rabin to find a deterministic prime without sequential counting.
  */
 export function getCurrentPrimeIndex(): number {
   const epoch = getOrCreateEpoch();
@@ -206,4 +210,91 @@ export function getEpochInfo(): PulseEpoch & { current_index: number; uptime_ms:
     current_index: getCurrentPrimeIndex(),
     uptime_ms: Date.now() - epochStartTime,
   };
+}
+
+// ============================================================================
+// LPP2 Residue / Catuskoti Channel Computation
+// ============================================================================
+
+/**
+ * Compute residue channel from a prime value.
+ * All primes > 5 end in 1, 3, 7, or 9 (i.e., prime mod 10 ∈ {1,3,7,9}).
+ * These four residues map to the four catuskoti truth-values.
+ */
+export function computeResidue(prime: bigint): { residue: Residue; channel: string; catuskoti: string; bits: string } {
+  const mod = Number(prime % 10n) as Residue;
+  // Primes 2 and 5 don't end in 1/3/7/9; treat them as edge cases
+  if (!(mod in RESIDUE_MAP)) {
+    // 2 mod 10 = 2, 5 mod 10 = 5 — map to agreement as default for these two primes
+    return { residue: 1 as Residue, ...RESIDUE_MAP[1] };
+  }
+  return { residue: mod, ...RESIDUE_MAP[mod] };
+}
+
+/**
+ * Get full residue response at a given prime index
+ */
+export function getResidueAtIndex(index: number, includeNeighborhood: boolean = false, k: number = 10): ResidueResponse {
+  const prime = primeEngine.primeAtIndex(index);
+  const { residue, channel, catuskoti, bits } = computeResidue(prime);
+
+  const response: ResidueResponse = {
+    pulseIndex: index,
+    prime: prime.toString(),
+    residue,
+    channel: channel as ResidueResponse['channel'],
+    catuskoti: catuskoti as ResidueResponse['catuskoti'],
+    quaternaryBits: bits as ResidueResponse['quaternaryBits'],
+  };
+
+  if (includeNeighborhood) {
+    const result = primeEngine.primesAroundIndex(index, k);
+    const primes = result.primes;
+    const residues = primes.map(p => {
+      const mod = Number(p % 10n);
+      return (mod in RESIDUE_MAP ? mod : 1) as Residue;
+    });
+    const stream = residues.map(r => RESIDUE_MAP[r].bits).join('');
+
+    response.neighborhood = {
+      k,
+      primes: primes.map(p => p.toString()),
+      residues,
+      stream,
+    };
+  }
+
+  return response;
+}
+
+/**
+ * Get current residue (at current pulse index)
+ */
+export function getCurrentResidue(includeNeighborhood: boolean = false, k: number = 10): ResidueResponse {
+  const index = getCurrentPrimeIndex();
+  return getResidueAtIndex(index, includeNeighborhood, k);
+}
+
+/**
+ * Compute channel schedule for the next N pulses from a starting index
+ */
+export function getChannelSchedule(fromIndex: number, count: number): ChannelScheduleEntry[] {
+  const schedule: ChannelScheduleEntry[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const idx = fromIndex + i;
+    const prime = primeEngine.primeAtIndex(idx);
+    const { residue, channel, catuskoti, bits } = computeResidue(prime);
+
+    schedule.push({
+      pulseIndex: idx,
+      prime: prime.toString(),
+      residue,
+      channel: channel as ChannelScheduleEntry['channel'],
+      catuskoti: catuskoti as ChannelScheduleEntry['catuskoti'],
+      quaternaryBits: bits as ChannelScheduleEntry['quaternaryBits'],
+    });
+  }
+
+  return schedule;
 }
