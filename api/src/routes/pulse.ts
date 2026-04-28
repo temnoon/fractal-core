@@ -26,14 +26,15 @@ import {
   verifyCanonicalSignature,
   publicKeyFromBase64,
 } from '../crypto/signing.js';
-import { getPrimaryKeyPairAsync, getSigningKeysAsync } from '../config/keys.js';
-import type {
-  MintRequest,
-  MintReceipt,
-  MintedPulse,
-  SignedPulse,
-  TimeSystemDescriptor,
-  AuditBlock,
+import { getPersistentPrimaryKeyPair, getSigningKeysAsync } from '../config/keys.js';
+import {
+  PULSE_PROTOCOL_VERSION,
+  type MintRequest,
+  type MintReceipt,
+  type MintedPulse,
+  type SignedPulse,
+  type TimeSystemDescriptor,
+  type AuditBlock,
 } from '../types/pulse.js';
 
 export const pulseRoute = new Hono<{ Bindings: Env }>();
@@ -54,6 +55,7 @@ pulseRoute.get('/', async (c) => {
   const keys = await getSigningKeysAsync();
   return c.json({
     service: 'fractal-core/pulse',
+    protocol_version: PULSE_PROTOCOL_VERSION,
     systems,
     signing_keys: keys,
   });
@@ -68,6 +70,7 @@ pulseRoute.get('/:system_id/parameters', async (c) => {
   if (!system) return c.json({ error: 'unknown system' }, 404);
   const keys = await getSigningKeysAsync();
   return c.json({
+    protocol_version: PULSE_PROTOCOL_VERSION,
     time_system: { ...system, key_id: keys[0]?.keyId ?? 'ephemeral' },
     signing_keys: keys,
   });
@@ -131,12 +134,28 @@ pulseRoute.get('/:system_id/now', async (c) => {
   };
 
   // Sign (time_system + pulse + receipt) — no request, since this is public
-  const keyPair = await getPrimaryKeyPairAsync();
-  if (!keyPair) return c.json({ error: 'signing not available' }, 503);
+  const keyPair = await getPersistentPrimaryKeyPair();
+  if (!keyPair) {
+    return c.json(
+      {
+        error: 'persistent signing key unavailable',
+        code: 'KEY_NOT_PERSISTENT',
+        message:
+          'Refusing to sign with an isolate-local ephemeral key — consumers ' +
+          'cannot resolve such a key_id through /parameters. Check KEYS_KV ' +
+          'binding and that a key has been provisioned.',
+      },
+      503
+    );
+  }
   const tsForSig = { ...system, key_id: keyPair.keyId };
-  const signature = signCanonical({ time_system: tsForSig, pulse, receipt }, keyPair);
+  const signature = signCanonical(
+    { protocol_version: PULSE_PROTOCOL_VERSION, time_system: tsForSig, pulse, receipt },
+    keyPair
+  );
 
   const response: SignedPulse = {
+    protocol_version: PULSE_PROTOCOL_VERSION,
     time_system: tsForSig,
     pulse,
     receipt,
@@ -225,15 +244,28 @@ pulseRoute.post('/:system_id/mint', async (c) => {
     generated_at_iso: nowIso,
   };
 
-  const keyPair = await getPrimaryKeyPairAsync();
-  if (!keyPair) return c.json({ error: 'signing not available' }, 503);
+  const keyPair = await getPersistentPrimaryKeyPair();
+  if (!keyPair) {
+    return c.json(
+      {
+        error: 'persistent signing key unavailable',
+        code: 'KEY_NOT_PERSISTENT',
+        message:
+          'Refusing to sign with an isolate-local ephemeral key — consumers ' +
+          'cannot resolve such a key_id through /parameters. Check KEYS_KV ' +
+          'binding and that a key has been provisioned.',
+      },
+      503
+    );
+  }
   const tsForSig = { ...system, key_id: keyPair.keyId };
   const signature = signCanonical(
-    { time_system: tsForSig, request, pulse, receipt },
+    { protocol_version: PULSE_PROTOCOL_VERSION, time_system: tsForSig, request, pulse, receipt },
     keyPair
   );
 
   const response: SignedPulse = {
+    protocol_version: PULSE_PROTOCOL_VERSION,
     time_system: tsForSig,
     request,
     pulse,
@@ -260,6 +292,7 @@ pulseRoute.post('/:system_id/verify', async (c) => {
   }
 
   const checks = {
+    protocol_version: false,
     signature: false,
     request_hash: false,
     pulse_hash: false,
@@ -267,6 +300,18 @@ pulseRoute.post('/:system_id/verify', async (c) => {
     expires_in_future: true,
     prime_is_prime: false,
   };
+
+  // Wire-format version must match. Reject unknown versions: the canonical
+  // bundle shape may have changed, so a signature that "looks valid" against
+  // the old shape would be misinterpreted by callers expecting the new one.
+  checks.protocol_version = signed.protocol_version === PULSE_PROTOCOL_VERSION;
+  if (!checks.protocol_version) {
+    return c.json({
+      valid: false,
+      reason: `unsupported protocol_version ${signed.protocol_version ?? '(missing)'}; expected ${PULSE_PROTOCOL_VERSION}`,
+      checks,
+    });
+  }
 
   // Locate the public key by id
   const keys = await getSigningKeysAsync();
@@ -280,10 +325,11 @@ pulseRoute.post('/:system_id/verify', async (c) => {
   }
   const publicKey = publicKeyFromBase64(known.publicKeyB64);
 
-  // Verify the signature over the canonical bundle
+  // Verify the signature over the canonical bundle. protocol_version is
+  // included in the signed bytes so a version-tag tamper invalidates the sig.
   const bundle = signed.request
-    ? { time_system: signed.time_system, request: signed.request, pulse: signed.pulse, receipt: signed.receipt }
-    : { time_system: signed.time_system, pulse: signed.pulse, receipt: signed.receipt };
+    ? { protocol_version: signed.protocol_version, time_system: signed.time_system, request: signed.request, pulse: signed.pulse, receipt: signed.receipt }
+    : { protocol_version: signed.protocol_version, time_system: signed.time_system, pulse: signed.pulse, receipt: signed.receipt };
   checks.signature = verifyCanonicalSignature(bundle, signed.signature, publicKey);
 
   // Verify hashes inside the receipt
@@ -310,6 +356,7 @@ pulseRoute.post('/:system_id/verify', async (c) => {
   }
 
   const valid =
+    checks.protocol_version &&
     checks.signature &&
     checks.request_hash &&
     checks.pulse_hash &&

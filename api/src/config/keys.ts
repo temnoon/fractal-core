@@ -5,7 +5,7 @@
  * Falls back to ephemeral keys for local development.
  */
 
-import { getOrCreateKeyPair, getKeyInfo, clearKeyCache } from '../services/key-manager.js';
+import { getOrCreateKeyPair, getKeyInfo, clearKeyCache, loadPersistentKeyPair } from '../services/key-manager.js';
 import { publicKeyToBase64, generateKeyPair } from '../crypto/signing.js';
 import type { KeyPair } from '../crypto/signing.js';
 
@@ -106,6 +106,18 @@ export async function getPrimaryKeyPairAsync(): Promise<KeyPair | null> {
 export function getPrimaryKeyPair(): KeyPair | null {
   ensureInitializedSync();
   return primaryKey?.keyPair ?? null;
+}
+
+/**
+ * Get the primary signing key pair, but only if it's KV-persistent.
+ *
+ * Returns null when KV is unavailable, the load fails, or the only available
+ * key is ephemeral. Pulse endpoints (/now, /mint) use this so they fail-closed
+ * rather than sign with an isolate-local key that no external verifier can
+ * resolve through /parameters.
+ */
+export async function getPersistentPrimaryKeyPair(): Promise<KeyPair | null> {
+  return loadPersistentKeyPair(currentKv);
 }
 
 /**

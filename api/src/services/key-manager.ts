@@ -136,6 +136,39 @@ export async function getKeyInfo(kv?: KVNamespace): Promise<{
 }
 
 /**
+ * Load the persistent signing key pair, never falling back to ephemeral.
+ *
+ * Returns null when KV is unavailable, the load fails, or no key has been
+ * stored. Use this on endpoints whose signatures are meant to be verified
+ * by external consumers against the published /parameters key — silently
+ * signing with an ephemeral key would produce signatures that no one outside
+ * this isolate can verify.
+ */
+export async function loadPersistentKeyPair(kv?: KVNamespace): Promise<KeyPair | null> {
+  if (cachedKeyPair && !cachedKeyPair.keyId.startsWith('ephemeral-')) {
+    return cachedKeyPair;
+  }
+  if (!kv) return null;
+  try {
+    const [secretKeyHex, keyId] = await Promise.all([
+      kv.get(SECRET_KEY_KV),
+      kv.get(KEY_ID_KV),
+    ]);
+    if (!secretKeyHex || !keyId) return null;
+    const secretKey = fromHex(secretKeyHex);
+    const kp = keyPairFromSecret(keyId, secretKey);
+    // Cache only if we'd be replacing nothing or replacing an ephemeral —
+    // never overwrite an already-persistent cached key.
+    if (!cachedKeyPair || cachedKeyPair.keyId.startsWith('ephemeral-')) {
+      cachedKeyPair = kp;
+    }
+    return kp;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Force rotation of signing keys
  *
  * Generates a new key pair and stores it in KV, replacing the old one.

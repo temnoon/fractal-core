@@ -1,15 +1,37 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { resetKeys } from '../../src/config/keys.js';
+import { getOrCreateKeyPair } from '../../src/services/key-manager.js';
 
 const app = createApp();
 
-beforeEach(() => {
+/**
+ * Minimal in-memory KVNamespace stub. The pulse routes require a persistent
+ * (KV-backed) signing key — without a stub here, every signing path would
+ * 503 with KEY_NOT_PERSISTENT. The stub mirrors the get/put surface that
+ * key-manager.ts uses; nothing else is needed.
+ */
+function createStubKv(): any {
+  const store = new Map<string, string>();
+  return {
+    get: async (k: string) => store.get(k) ?? null,
+    put: async (k: string, v: string) => { store.set(k, v); },
+    delete: async (k: string) => { store.delete(k); },
+    list: async () => ({ keys: Array.from(store.keys()).map((name) => ({ name })) }),
+  };
+}
+
+let testEnv: any;
+
+beforeEach(async () => {
   resetKeys();
+  testEnv = { KEYS_KV: createStubKv() };
+  // Bootstrap a persistent key in the stub so loadPersistentKeyPair finds it.
+  await getOrCreateKeyPair(testEnv.KEYS_KV);
 });
 
 async function get(path: string) {
-  return app.fetch(new Request(`http://test.local${path}`));
+  return app.fetch(new Request(`http://test.local${path}`), testEnv);
 }
 
 async function postJson(path: string, body: unknown, headers: Record<string, string> = {}) {
@@ -18,7 +40,8 @@ async function postJson(path: string, body: unknown, headers: Record<string, str
       method: 'POST',
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(body),
-    })
+    }),
+    testEnv
   );
 }
 
@@ -97,7 +120,7 @@ describe('POST /api/v1/pulse/:system_id/mint', () => {
 
   it('accepts admin API key + binds requester + target_domain', async () => {
     const ADMIN = 'test-admin-key';
-    const env = { ADMIN_API_KEY: ADMIN } as any;
+    const env = { ...testEnv, ADMIN_API_KEY: ADMIN } as any;
     const res = await app.fetch(
       new Request('http://test.local/api/v1/pulse/cosmic/mint', {
         method: 'POST',
@@ -125,7 +148,7 @@ describe('POST /api/v1/pulse/:system_id/mint', () => {
 
   it('rejects invalid nonce', async () => {
     const ADMIN = 'test-admin-key';
-    const env = { ADMIN_API_KEY: ADMIN } as any;
+    const env = { ...testEnv, ADMIN_API_KEY: ADMIN } as any;
     const res = await app.fetch(
       new Request('http://test.local/api/v1/pulse/milli/mint', {
         method: 'POST',
@@ -144,6 +167,56 @@ describe('POST /api/v1/pulse/:system_id/mint', () => {
   });
 });
 
+describe('fail-closed signing keys', () => {
+  // Simulates cold-start with no KEYS_KV available — the worst case the
+  // hardening protects against. Clears the in-memory cache so the route
+  // can't lean on a previously-loaded key.
+  it('503s on /now when KEYS_KV is unbound (cold start)', async () => {
+    resetKeys();
+    const res = await app.fetch(
+      new Request('http://test.local/api/v1/pulse/milli/now'),
+      {} as any
+    );
+    expect(res.status).toBe(503);
+    const body: any = await res.json();
+    expect(body.code).toBe('KEY_NOT_PERSISTENT');
+  });
+
+  it('503s on /mint when KEYS_KV is unbound (cold start)', async () => {
+    resetKeys();
+    const ADMIN = 'test-admin-key';
+    const res = await app.fetch(
+      new Request('http://test.local/api/v1/pulse/milli/mint', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'authorization': `Bearer ${ADMIN}`,
+        },
+        body: JSON.stringify({
+          target_domain: 'post-social.com',
+          nonce: '0123456789abcdef0123456789abcdef',
+        }),
+      }),
+      { ADMIN_API_KEY: ADMIN } as any
+    );
+    expect(res.status).toBe(503);
+    const body: any = await res.json();
+    expect(body.code).toBe('KEY_NOT_PERSISTENT');
+  });
+
+  it('503s on /now when KEYS_KV is bound but empty (fresh deployment)', async () => {
+    resetKeys();
+    const emptyKv = createStubKv();
+    const res = await app.fetch(
+      new Request('http://test.local/api/v1/pulse/milli/now'),
+      { KEYS_KV: emptyKv } as any
+    );
+    expect(res.status).toBe(503);
+    const body: any = await res.json();
+    expect(body.code).toBe('KEY_NOT_PERSISTENT');
+  });
+});
+
 describe('POST /api/v1/pulse/:system_id/verify', () => {
   it('verifies a freshly-minted pulse from /now', async () => {
     const nowRes = await get('/api/v1/pulse/milli/now');
@@ -159,7 +232,7 @@ describe('POST /api/v1/pulse/:system_id/verify', () => {
 
   it('verifies a freshly-minted pulse from /mint (admin)', async () => {
     const ADMIN = 'test-admin-key';
-    const env = { ADMIN_API_KEY: ADMIN } as any;
+    const env = { ...testEnv, ADMIN_API_KEY: ADMIN } as any;
     const mintRes = await app.fetch(
       new Request('http://test.local/api/v1/pulse/milli/mint', {
         method: 'POST',
@@ -190,5 +263,46 @@ describe('POST /api/v1/pulse/:system_id/verify', () => {
     const verifyRes = await postJson('/api/v1/pulse/milli/verify', { signed });
     const result: any = await verifyRes.json();
     expect(result.valid).toBe(false);
+  });
+
+  it('rejects an unrecognized protocol_version', async () => {
+    const nowRes = await get('/api/v1/pulse/milli/now');
+    const signed: any = await nowRes.json();
+    signed.protocol_version = 'fc-pulse/99';
+    const verifyRes = await postJson('/api/v1/pulse/milli/verify', { signed });
+    const result: any = await verifyRes.json();
+    expect(result.valid).toBe(false);
+    expect(result.checks.protocol_version).toBe(false);
+    expect(result.reason).toMatch(/protocol_version/);
+  });
+
+  it('rejects a missing protocol_version', async () => {
+    const nowRes = await get('/api/v1/pulse/milli/now');
+    const signed: any = await nowRes.json();
+    delete signed.protocol_version;
+    const verifyRes = await postJson('/api/v1/pulse/milli/verify', { signed });
+    const result: any = await verifyRes.json();
+    expect(result.valid).toBe(false);
+    expect(result.checks.protocol_version).toBe(false);
+  });
+});
+
+describe('protocol versioning', () => {
+  it('GET /pulse advertises protocol_version', async () => {
+    const res = await get('/api/v1/pulse');
+    const data: any = await res.json();
+    expect(data.protocol_version).toBe('fc-pulse/1');
+  });
+
+  it('GET /pulse/:id/parameters advertises protocol_version', async () => {
+    const res = await get('/api/v1/pulse/cosmic/parameters');
+    const data: any = await res.json();
+    expect(data.protocol_version).toBe('fc-pulse/1');
+  });
+
+  it('signed pulse from /now includes protocol_version', async () => {
+    const res = await get('/api/v1/pulse/milli/now');
+    const signed: any = await res.json();
+    expect(signed.protocol_version).toBe('fc-pulse/1');
   });
 });

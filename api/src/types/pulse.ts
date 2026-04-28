@@ -8,6 +8,21 @@
  * Anyone can stand up their own with their own anchor + key.
  */
 
+/**
+ * Wire-format version for the signed pulse envelope.
+ *
+ * Bumped on any breaking change to the canonical shape of `{protocol_version,
+ * time_system, request?, pulse, receipt}` — fields added, removed, renamed,
+ * or repositioned in the canonical sort order in a way that invalidates
+ * existing signatures, or fields whose semantics change.
+ *
+ * The version is itself part of the signed bytes: a tampered-down version
+ * tag fails signature verification. Verifiers must reject unrecognized
+ * versions rather than ignoring them, otherwise consumers split-brain on
+ * the meaning of a "valid" pulse.
+ */
+export const PULSE_PROTOCOL_VERSION = 'fc-pulse/1';
+
 export type MintCadence = 'fresh-per-mint' | 'one-per-tick';
 
 export interface TimeSystemDescriptor {
@@ -144,6 +159,7 @@ export interface SignatureBlock {
  * For public /now broadcasts: request omitted, target_domain absent.
  */
 export interface SignedPulse {
+  protocol_version: string;
   time_system: TimeSystemDescriptor;
   request?: MintRequest;
   pulse: MintedPulse;
@@ -163,6 +179,7 @@ export interface VerifyMintResponse {
   valid: boolean;
   reason?: string;
   checks: {
+    protocol_version: boolean;
     signature: boolean;
     request_hash: boolean;
     pulse_hash: boolean;
